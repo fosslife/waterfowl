@@ -7,10 +7,12 @@ import {
   PanelLeft,
 } from "lucide-react";
 import { NavLink, Outlet, useParams, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import clsx from "clsx";
 import { useConnections } from "../context/ConnectionsContext";
 import styles from "./AppLayout.module.css";
+
+const HOVER_DELAY_MS = 300;
 
 export function AppLayout() {
   const { connections } = useConnections();
@@ -21,6 +23,7 @@ export function AppLayout() {
   const isInConnection = location.pathname.startsWith("/connection/");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
 
   // Auto-collapse when entering a connection view
   useEffect(() => {
@@ -29,6 +32,38 @@ export function AppLayout() {
     }
   }, [isInConnection]);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleMouseEnter = () => {
+    if (!isCollapsed) return;
+
+    // Clear any existing timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    // Delay before expanding to filter out accidental hovers
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setIsHovered(true);
+    }, HOVER_DELAY_MS);
+  };
+
+  const handleMouseLeave = () => {
+    // Cancel pending hover
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHovered(false);
+  };
+
   const showExpanded = !isCollapsed || isHovered;
 
   return (
@@ -36,10 +71,11 @@ export function AppLayout() {
       <aside
         className={clsx(
           styles.sidebar,
-          isCollapsed && !isHovered && styles.collapsed
+          isCollapsed && styles.collapsed,
+          isCollapsed && isHovered && styles.hoveredOpen
         )}
-        onMouseEnter={() => isCollapsed && setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <div className={styles.brand}>
           <NavLink to="/" className={styles.logo}>
@@ -154,7 +190,12 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className={styles.content}>
+      <main
+        className={clsx(
+          styles.content,
+          isCollapsed && styles.contentWithCollapsedSidebar
+        )}
+      >
         <Outlet />
       </main>
     </div>

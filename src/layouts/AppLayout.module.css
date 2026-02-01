@@ -19,14 +19,15 @@
 
 .sidebar.collapsed {
   width: 56px;
-}
-
-.sidebar.collapsed:hover {
-  width: 240px;
   position: fixed;
   left: 0;
   top: 0;
   bottom: 0;
+}
+
+/* Expanded state when hovering over collapsed sidebar (controlled via JS with delay) */
+.sidebar.collapsed.hoveredOpen {
+  width: 240px;
   box-shadow: var(--shadow-lg), 4px 0 20px rgba(0, 0, 0, 0.3);
   border-right: 1px solid var(--color-accent-primary);
 }
@@ -300,10 +301,9 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-app);
-  /* Account for collapsed sidebar overlay */
-  margin-left: 0;
 }
 
-.sidebar.collapsed ~ .content {
-  margin-left: 0;
+/* When sidebar is collapsed (fixed position), add margin to account for it */
+.contentWithCollapsedSidebar {
+  margin-left: 56px;
 }
