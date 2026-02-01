@@ -3,6 +3,7 @@ import { AppLayout } from "./layouts/AppLayout";
 import { Welcome } from "./pages/Welcome";
 import { NewConnection } from "./pages/NewConnection";
 import { ConnectionDetails } from "./pages/ConnectionDetails";
+import { SqlEditorPage } from "./pages/SqlEditorPage";
 import { ConnectionsProvider } from "./context/ConnectionsContext";
 import { ToastProvider } from "./context/ToastContext";
 
@@ -17,6 +18,7 @@ function App() {
               <Route path="/new-connection" element={<NewConnection />} />
               <Route path="/edit-connection/:id" element={<NewConnection />} />
               <Route path="/connection/:id" element={<ConnectionDetails />} />
+              <Route path="/connection/:id/sql" element={<SqlEditorPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

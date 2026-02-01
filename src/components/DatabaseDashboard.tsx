@@ -32,6 +32,7 @@ export function DatabaseDashboard({
   isLoading,
   connectionName,
   connectionHost,
+  onOpenSqlEditor,
 }: DatabaseDashboardProps) {
   if (isLoading) {
     return (
@@ -130,7 +131,11 @@ export function DatabaseDashboard({
       <div className={styles.actionsSection}>
         <h2 className={styles.actionsTitle}>Quick Actions</h2>
         <div className={styles.actionsGrid}>
-          <button className={styles.actionBtn} disabled title="Coming soon">
+          <button
+            className={styles.actionBtn}
+            onClick={onOpenSqlEditor}
+            title="Open SQL Editor"
+          >
             <Terminal size={16} className={styles.actionIcon} />
             Open SQL Editor
           </button>

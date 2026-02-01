@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import { useMemo, useRef, useState, useCallback, useEffect, memo } from "react";
 import {
   Loader2,
   Database,
@@ -25,6 +25,7 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import styles from "./DataTable.module.css";
+import { TableRow } from "./TableRow";
 
 export interface PaginationState {
   page: number;
@@ -107,9 +108,14 @@ export function DataTable({
     return Array.from(selectedIndices).map((i) => data[i]);
   }, [selectedIndices, data]);
 
-  const isAllSelected = data.length > 0 && selectedIndices.size === data.length;
-  const isSomeSelected =
-    selectedIndices.size > 0 && selectedIndices.size < data.length;
+  const isAllSelected = useMemo(
+    () => data.length > 0 && selectedIndices.size === data.length,
+    [data.length, selectedIndices.size]
+  );
+  const isSomeSelected = useMemo(
+    () => selectedIndices.size > 0 && selectedIndices.size < data.length,
+    [data.length, selectedIndices.size]
+  );
 
   // Build a lookup map for column types from columnInfo
   const columnTypeMap = useMemo(() => {
@@ -153,7 +159,7 @@ export function DataTable({
     },
     onSortingChange: setSorting,
     onColumnSizingChange: setColumnSizing,
-    columnResizeMode: "onChange",
+    columnResizeMode: "onEnd", // Better perf: only update state when drag ends
     enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -296,61 +302,18 @@ export function DataTable({
           >
             {virtualRows.map((virtualRow) => {
               const row = rows[virtualRow.index];
-              const isOdd = virtualRow.index % 2 === 1;
-              const isSelected = selectedIndices.has(virtualRow.index);
-
               return (
-                <tr
+                <TableRow
                   key={row.id}
-                  data-index={virtualRow.index}
-                  data-selected={isSelected}
-                  className={isOdd ? styles.zebraRow : undefined}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: totalTableWidth,
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  {selectable && (
-                    <td className={styles.checkboxCell}>
-                      <label className={styles.checkbox}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleRowSelection(virtualRow.index)}
-                        />
-                        <span className={styles.checkboxIndicator}>
-                          {isSelected && <Check size={12} />}
-                        </span>
-                      </label>
-                    </td>
-                  )}
-                  <td className={styles.rowIndex}>
-                    {pagination
-                      ? pagination.page * pagination.pageSize +
-                        virtualRow.index +
-                        1
-                      : virtualRow.index + 1}
-                  </td>
-                  {row.getVisibleCells().map((cell) => {
-                    const value = cell.getValue();
-                    return (
-                      <td
-                        key={cell.id}
-                        className={getCellClass(value)}
-                        style={{ width: cell.column.getSize() }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
+                  row={row}
+                  virtualRow={virtualRow}
+                  isSelected={selectedIndices.has(virtualRow.index)}
+                  isOdd={virtualRow.index % 2 === 1}
+                  selectable={selectable}
+                  pagination={pagination}
+                  totalTableWidth={totalTableWidth}
+                  onToggleSelection={toggleRowSelection}
+                />
               );
             })}
           </tbody>
@@ -371,7 +334,7 @@ export function DataTable({
   );
 }
 
-function SelectionToolbar({
+const SelectionToolbar = memo(function SelectionToolbar({
   selectedCount,
   onClear,
   onCopy,
@@ -424,9 +387,9 @@ function SelectionToolbar({
       </button>
     </div>
   );
-}
+});
 
-function PaginationControls({
+const PaginationControls = memo(function PaginationControls({
   pagination,
   onPageChange,
   onPageSizeChange,
@@ -510,7 +473,7 @@ function PaginationControls({
       </span>
     </div>
   );
-}
+});
 
 function inferType(data: Record<string, any>[], col: string): string {
   const sample = data.find(
@@ -527,14 +490,6 @@ function inferType(data: Record<string, any>[], col: string): string {
   }
   if (typeof sample === "object") return "json";
   return "unknown";
-}
-
-function getCellClass(val: any): string {
-  if (val === null || val === undefined) return styles.cellNull;
-  if (typeof val === "number") return styles.cellNumber;
-  if (typeof val === "boolean") return styles.cellBoolean;
-  if (typeof val === "object") return styles.cellJson;
-  return "";
 }
 
 function formatValue(val: any): string {

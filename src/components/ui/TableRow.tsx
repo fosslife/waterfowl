@@ -1,0 +1,84 @@
+import { memo } from "react";
+import { Check } from "lucide-react";
+import { flexRender } from "@tanstack/react-table";
+import type { PaginationState } from "./DataTable";
+import styles from "./DataTable.module.css";
+
+interface TableRowProps {
+  row: any;
+  virtualRow: { index: number; size: number; start: number };
+  isSelected: boolean;
+  isOdd: boolean;
+  selectable: boolean;
+  pagination?: PaginationState;
+  totalTableWidth: number;
+  onToggleSelection: (index: number) => void;
+}
+
+function getCellClass(val: any): string {
+  if (val === null || val === undefined) return styles.cellNull;
+  if (typeof val === "number") return styles.cellNumber;
+  if (typeof val === "boolean") return styles.cellBoolean;
+  if (typeof val === "object") return styles.cellJson;
+  return "";
+}
+
+// Memoized row component - prevents re-render of all rows when only one changes
+export const TableRow = memo(function TableRow({
+  row,
+  virtualRow,
+  isSelected,
+  isOdd,
+  selectable,
+  pagination,
+  totalTableWidth,
+  onToggleSelection,
+}: TableRowProps) {
+  return (
+    <tr
+      data-index={virtualRow.index}
+      data-selected={isSelected}
+      className={isOdd ? styles.zebraRow : undefined}
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: totalTableWidth,
+        height: `${virtualRow.size}px`,
+        transform: `translateY(${virtualRow.start}px)`,
+      }}
+    >
+      {selectable && (
+        <td className={styles.checkboxCell}>
+          <label className={styles.checkbox}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelection(virtualRow.index)}
+            />
+            <span className={styles.checkboxIndicator}>
+              {isSelected && <Check size={12} />}
+            </span>
+          </label>
+        </td>
+      )}
+      <td className={styles.rowIndex}>
+        {pagination
+          ? pagination.page * pagination.pageSize + virtualRow.index + 1
+          : virtualRow.index + 1}
+      </td>
+      {row.getVisibleCells().map((cell: any) => {
+        const value = cell.getValue();
+        return (
+          <td
+            key={cell.id}
+            className={getCellClass(value)}
+            style={{ width: cell.column.getSize() }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        );
+      })}
+    </tr>
+  );
+});

@@ -99,7 +99,7 @@
 .rowIndex {
   color: var(--color-text-tertiary);
   text-align: center;
-  width: 50px;
+  width: 60px;
   min-width: 50px;
   background: var(--color-base-50) !important;
   border-right: 1px solid var(--border-subtle);
@@ -123,6 +123,8 @@
 .table tbody tr {
   display: table;
   table-layout: fixed;
+  will-change: transform; /* GPU acceleration for smooth scrolling */
+  contain: layout style paint; /* CSS containment for better perf */
 }
 
 .table thead tr {

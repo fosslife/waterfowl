@@ -968,6 +968,73 @@ async fn close_connection(
     Ok(())
 }
 
+#[derive(Serialize)]
+pub struct QueryResult {
+    pub rows: Vec<Map<String, Value>>,
+    pub columns: Vec<ColumnInfo>,
+    pub rows_affected: u64,
+    pub execution_time_ms: u128,
+}
+
+#[tauri::command]
+async fn execute_query(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    query: String
+) -> Result<QueryResult, String> {
+    let pool = {
+        let pools = state.pools.lock().unwrap();
+        pools.get(&id).cloned().ok_or("Not connected")?
+    };
+
+    let start_time = std::time::Instant::now();
+
+    // Execute the query
+    let rows = sqlx::query(&query)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let execution_time_ms = start_time.elapsed().as_millis();
+
+    let mut results = Vec::new();
+    let mut columns_info = Vec::new();
+
+    // Extract column metadata from the first row
+    if let Some(first_row) = rows.first() {
+        for col in first_row.columns() {
+            columns_info.push(ColumnInfo {
+                name: col.name().to_string(),
+                pg_type: col.type_info().name().to_string(),
+            });
+        }
+    }
+
+    for row in &rows {
+        let mut map = Map::new();
+        for col in row.columns() {
+            let col_name = col.name();
+            let value_ref = row.try_get_raw(col.ordinal()).unwrap();
+            
+            let val = if value_ref.is_null() {
+                Value::Null
+            } else {
+                let type_name = col.type_info().name();
+                decode_pg_value(row, col.ordinal(), type_name)
+            };
+            map.insert(col_name.to_string(), val);
+        }
+        results.push(map);
+    }
+
+    Ok(QueryResult {
+        rows: results,
+        columns: columns_info,
+        rows_affected: rows.len() as u64,
+        execution_time_ms,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -988,7 +1055,8 @@ pub fn run() {
             delete_connection,
             get_database_info,
             get_schema_objects,
-            close_connection
+            close_connection,
+            execute_query
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

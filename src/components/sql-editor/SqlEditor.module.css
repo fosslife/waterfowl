@@ -1,0 +1,18 @@
+/**
+ * SQL Editor Styles
+ */
+
+.wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--color-base-50);
+  transition: border-color var(--transition-fast);
+}
+
+.wrapper:focus-within {
+  border-color: var(--color-accent-primary);
+  box-shadow: var(--shadow-glow);
+}

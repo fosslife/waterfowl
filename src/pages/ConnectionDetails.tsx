@@ -460,6 +460,7 @@ export function ConnectionDetails() {
               isLoading={isDbInfoLoading}
               connectionName={connection?.name || "Database"}
               connectionHost={connectionHost}
+              onOpenSqlEditor={() => navigate(`/connection/${id}/sql`)}
             />
           ) : selectedItem.type === "tables" ? (
             // Table data view
