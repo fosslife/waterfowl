@@ -22,6 +22,7 @@ export function NewConnection() {
     password: "",
     database: "postgres",
     driver: "postgres",
+    default_schema: "public",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -40,6 +41,7 @@ export function NewConnection() {
             password: conn.password || "",
             database: conn.database,
             driver: conn.driver,
+            default_schema: conn.default_schema || "public",
           });
         })
         .catch(console.error)
@@ -131,6 +133,8 @@ export function NewConnection() {
             label="Connection Name (Alias)"
             placeholder="e.g. Production DB"
             value={formData.name}
+            autoComplete="off"
+            autoFocus={true}
             onChange={handleChange}
           />
         </div>
@@ -161,12 +165,21 @@ export function NewConnection() {
             />
           </div>
 
-          <div className={styles.fieldSpacing}>
+          <div className={styles.gridHalf}>
             <Input
               id="database"
               label="Database Name"
               placeholder="postgres"
+              autoComplete="off"
               value={formData.database}
+              onChange={handleChange}
+            />
+            <Input
+              id="default_schema"
+              label="Default Schema"
+              placeholder="public"
+              autoComplete="off"
+              value={formData.default_schema}
               onChange={handleChange}
             />
           </div>

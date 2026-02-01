@@ -1,9 +1,13 @@
 import { Button } from "../components/ui/Button";
 import { Link } from "react-router-dom";
 import { Database, Zap, Shield, Terminal } from "lucide-react";
+import { useConnections } from "../context/ConnectionsContext";
 import styles from "./Welcome.module.css";
 
 export function Welcome() {
+  const { connections } = useConnections();
+  const hasConnections = connections.length > 0;
+
   return (
     <div className={styles.page}>
       {/* Background grid pattern */}
@@ -36,7 +40,11 @@ export function Welcome() {
         </div>
 
         <Link to="/new-connection">
-          <Button size="lg">Create First Connection</Button>
+          <Button size="lg">
+            {hasConnections
+              ? "Create New Connection"
+              : "Create First Connection"}
+          </Button>
         </Link>
 
         <p className={styles.footnote}>PostgreSQL 12+ supported</p>

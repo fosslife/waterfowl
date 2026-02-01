@@ -1,20 +1,21 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  Table,
-  Search,
   Trash2,
   Edit,
   AlertTriangle,
   RefreshCw,
-  ChevronDown,
   Database,
-  Loader2,
-  X,
+  LogOut,
 } from "lucide-react";
 import { DataTable } from "../components/ui/DataTable";
 import { Button } from "../components/ui/Button";
+import { SchemaSidebar, SchemaObjects } from "../components/SchemaSidebar";
+import {
+  DatabaseDashboard,
+  DatabaseInfo,
+} from "../components/DatabaseDashboard";
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConnectionDetails.module.css";
@@ -24,48 +25,116 @@ export function ConnectionDetails() {
   const navigate = useNavigate();
   const { connections, refreshConnections } = useConnections();
   const toast = useToast();
-  const [tables, setTables] = useState<string[]>([]);
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const [tableData, setTableData] = useState<any[]>([]);
+
+  // Schema and DB info
+  const [schemas, setSchemas] = useState<string[]>([]);
+  const [activeSchema, setActiveSchema] = useState<string>("public");
+  const [schemaObjects, setSchemaObjects] = useState<SchemaObjects | null>(
+    null
+  );
+  const [dbInfo, setDbInfo] = useState<DatabaseInfo | null>(null);
   const [isSchemaLoading, setIsSchemaLoading] = useState(true);
+  const [isDbInfoLoading, setIsDbInfoLoading] = useState(true);
+
+  // Selection state
+  const [selectedItem, setSelectedItem] = useState<{
+    type: string;
+    name: string;
+  } | null>(null);
+  const [tableData, setTableData] = useState<any[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
+
+  // UI state
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
-  const [isTableDropdownOpen, setIsTableDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const connection = connections.find((c) => c.id === id);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setIsTableDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const initConnection = async () => {
     if (!id) return;
     setIsSchemaLoading(true);
+    setIsDbInfoLoading(true);
     setError(null);
+
     try {
       await invoke("establish_connection", { id });
-      const tablesList = await invoke<string[]>("get_tables", { id });
-      setTables(tablesList);
+
+      // Fetch available schemas first
+      const schemasData = await invoke<string[]>("get_schemas", { id });
+      setSchemas(schemasData);
+
+      // Determine initial schema (from connection config or default to public)
+      const initialSchema = connection?.default_schema || "public";
+      // If the configured schema doesn't exist, fall back to first available or public
+      const validSchema = schemasData.includes(initialSchema)
+        ? initialSchema
+        : schemasData[0] || "public";
+      setActiveSchema(validSchema);
+
+      // Fetch schema objects and database info in parallel
+      const [schemaData, dbInfoData] = await Promise.all([
+        invoke<SchemaObjects>("get_schema_objects", {
+          id,
+          schema: validSchema,
+        }),
+        invoke<DatabaseInfo>("get_database_info", { id, schema: validSchema }),
+      ]);
+
+      setSchemaObjects(schemaData);
+      setDbInfo(dbInfoData);
     } catch (e: any) {
       console.error(e);
       setError(e.toString());
     } finally {
       setIsSchemaLoading(false);
+      setIsDbInfoLoading(false);
       setIsRetrying(false);
+    }
+  };
+
+  const refreshSchema = async () => {
+    if (!id) return;
+    setIsSchemaLoading(true);
+    try {
+      const [schemaData, dbInfoData] = await Promise.all([
+        invoke<SchemaObjects>("get_schema_objects", {
+          id,
+          schema: activeSchema,
+        }),
+        invoke<DatabaseInfo>("get_database_info", { id, schema: activeSchema }),
+      ]);
+      setSchemaObjects(schemaData);
+      setDbInfo(dbInfoData);
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to refresh schema");
+    } finally {
+      setIsSchemaLoading(false);
+    }
+  };
+
+  const handleSchemaChange = async (newSchema: string) => {
+    if (!id || newSchema === activeSchema) return;
+    setActiveSchema(newSchema);
+    setSelectedItem(null); // Clear selection when switching schemas
+    setTableData([]);
+    setIsSchemaLoading(true);
+    setIsDbInfoLoading(true);
+
+    try {
+      const [schemaData, dbInfoData] = await Promise.all([
+        invoke<SchemaObjects>("get_schema_objects", { id, schema: newSchema }),
+        invoke<DatabaseInfo>("get_database_info", { id, schema: newSchema }),
+      ]);
+      setSchemaObjects(schemaData);
+      setDbInfo(dbInfoData);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(`Failed to load schema: ${e}`);
+    } finally {
+      setIsSchemaLoading(false);
+      setIsDbInfoLoading(false);
     }
   };
 
@@ -73,24 +142,46 @@ export function ConnectionDetails() {
     initConnection();
   }, [id]);
 
+  // Fetch data when a table is selected
   useEffect(() => {
     async function fetchData() {
-      if (!id || !selectedTable) return;
+      if (!id || !selectedItem || selectedItem.type !== "tables") {
+        setTableData([]);
+        return;
+      }
+
       setIsDataLoading(true);
       try {
         const data = await invoke<any[]>("get_table_data", {
           id,
-          table: selectedTable,
+          table: selectedItem.name,
+          schema: activeSchema,
         });
         setTableData(data);
       } catch (e: any) {
         console.error(e);
+        toast.error(`Failed to load table data: ${e}`);
       } finally {
         setIsDataLoading(false);
       }
     }
     fetchData();
-  }, [id, selectedTable]);
+  }, [id, selectedItem, activeSchema]);
+
+  const handleSelectItem = (type: string, name: string) => {
+    setSelectedItem({ type, name });
+  };
+
+  const handleCloseConnection = async () => {
+    try {
+      await invoke("close_connection", { id });
+      navigate("/");
+    } catch (e: any) {
+      console.error(e);
+      // Navigate anyway even if close fails
+      navigate("/");
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this connection?")) return;
@@ -111,10 +202,6 @@ export function ConnectionDetails() {
     setIsRetrying(true);
     initConnection();
   };
-
-  const filteredTables = tables.filter((t) =>
-    t.toLowerCase().includes(filter.toLowerCase())
-  );
 
   if (error) {
     return (
@@ -163,6 +250,10 @@ export function ConnectionDetails() {
     );
   }
 
+  const connectionHost = connection
+    ? `${connection.host}:${connection.port}/${connection.database}`
+    : "";
+
   return (
     <div className={styles.page}>
       {/* Header Bar */}
@@ -176,99 +267,40 @@ export function ConnectionDetails() {
             <div className={styles.connectionName}>
               {connection?.name || "Connection"}
             </div>
-            <div className={styles.connectionHost}>
-              {connection?.host}:{connection?.port}/{connection?.database}
-            </div>
+            <div className={styles.connectionHost}>{connectionHost}</div>
           </div>
         </div>
 
         {/* Divider */}
         <div className={styles.divider} />
 
-        {/* Table selector dropdown */}
-        <div ref={dropdownRef} className={styles.dropdownWrapper}>
-          <button
-            onClick={() => setIsTableDropdownOpen(!isTableDropdownOpen)}
-            disabled={isSchemaLoading}
-            className={styles.dropdownTrigger}
-            data-has-selection={!!selectedTable}
-          >
-            <span className={styles.dropdownTriggerContent}>
-              {isSchemaLoading ? (
-                <Loader2 size={14} className={styles.spinner} />
-              ) : (
-                <Table size={14} />
-              )}
-              {isSchemaLoading ? "Loading..." : selectedTable || "Select table"}
-            </span>
-            <ChevronDown
-              size={14}
-              className={styles.dropdownChevron}
-              data-open={isTableDropdownOpen}
-            />
-          </button>
-
-          {/* Dropdown menu */}
-          {isTableDropdownOpen && (
-            <div className={styles.dropdownMenu}>
-              {/* Search */}
-              <div className={styles.dropdownSearch}>
-                <div className={styles.searchInputWrapper}>
-                  <Search size={14} className={styles.searchIcon} />
-                  <input
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                    placeholder="Search tables..."
-                    autoFocus
-                    className={styles.searchInput}
-                  />
-                  {filter && (
-                    <button
-                      onClick={() => setFilter("")}
-                      className={styles.searchClear}
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Table list */}
-              <div className={styles.dropdownList}>
-                {filteredTables.length === 0 ? (
-                  <div className={styles.dropdownEmpty}>No tables found</div>
-                ) : (
-                  filteredTables.map((table) => (
-                    <button
-                      key={table}
-                      onClick={() => {
-                        setSelectedTable(table);
-                        setIsTableDropdownOpen(false);
-                        setFilter("");
-                      }}
-                      className={styles.dropdownItem}
-                      data-selected={selectedTable === table}
-                    >
-                      <Table size={14} className={styles.dropdownItemIcon} />
-                      <span className={styles.dropdownItemText}>{table}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-
-              {/* Footer with count */}
-              <div className={styles.dropdownFooter}>
-                {tables.length} tables
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Selected item indicator */}
+        {selectedItem && selectedItem.type === "tables" && (
+          <>
+            <span className={styles.tableName}>{selectedItem.name}</span>
+            <span className={styles.tableBadge}>TABLE</span>
+          </>
+        )}
+        {selectedItem && selectedItem.type === "views" && (
+          <>
+            <span className={styles.tableName}>{selectedItem.name}</span>
+            <span className={styles.tableBadge}>VIEW</span>
+          </>
+        )}
 
         {/* Spacer */}
         <div className={styles.spacer} />
 
         {/* Actions */}
         <div className={styles.actions}>
+          <button
+            onClick={handleCloseConnection}
+            className={styles.closeBtn}
+            title="Close Connection"
+          >
+            <LogOut size={14} />
+            Close
+          </button>
           <button
             onClick={() => navigate(`/edit-connection/${id}`)}
             title="Edit Connection"
@@ -287,51 +319,64 @@ export function ConnectionDetails() {
         </div>
       </header>
 
-      {/* Main content */}
-      <main className={styles.main}>
-        {!selectedTable ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyIconWrapper}>
-              <Table size={36} className={styles.emptyIcon} />
-            </div>
-            <h2 className={styles.emptyTitle}>Select a Table</h2>
-            <p className={styles.emptySubtitle}>
-              Choose a table from the dropdown above to view and explore its
-              data.
-            </p>
-            {tables.length > 0 && (
-              <div className={styles.quickTables}>
-                {tables.slice(0, 5).map((table) => (
-                  <button
-                    key={table}
-                    onClick={() => setSelectedTable(table)}
-                    className={styles.quickTableBtn}
-                  >
-                    {table}
-                  </button>
-                ))}
-                {tables.length > 5 && (
-                  <span className={styles.quickTableMore}>
-                    +{tables.length - 5} more
-                  </span>
-                )}
+      {/* Body with sidebar */}
+      <div className={styles.body}>
+        {/* Schema Sidebar */}
+        <SchemaSidebar
+          schema={schemaObjects}
+          isLoading={isSchemaLoading}
+          selectedItem={selectedItem}
+          onSelectItem={handleSelectItem}
+          onRefresh={refreshSchema}
+          schemas={schemas}
+          activeSchema={activeSchema}
+          onSchemaChange={handleSchemaChange}
+        />
+
+        {/* Main content panel */}
+        <div className={styles.mainPanel}>
+          {!selectedItem ? (
+            // Dashboard when nothing selected
+            <DatabaseDashboard
+              info={dbInfo}
+              isLoading={isDbInfoLoading}
+              connectionName={connection?.name || "Database"}
+              connectionHost={connectionHost}
+            />
+          ) : selectedItem.type === "tables" ? (
+            // Table data view
+            <div className={styles.tableView}>
+              <div className={styles.tableHeader}>
+                <span className={styles.tableName}>{selectedItem.name}</span>
+                <span className={styles.tableBadge}>LIMIT 100</span>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className={styles.tableView}>
-            {/* Table header bar */}
-            <div className={styles.tableHeader}>
-              <span className={styles.tableName}>{selectedTable}</span>
-              <span className={styles.tableBadge}>LIMIT 100</span>
+              <div className={styles.tableContent}>
+                <DataTable data={tableData} isLoading={isDataLoading} />
+              </div>
             </div>
-            {/* Data table with padding */}
-            <div className={styles.tableContent}>
-              <DataTable data={tableData} isLoading={isDataLoading} />
+          ) : (
+            // Placeholder for views, functions, sequences
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIconWrapper}>
+                <Database size={36} className={styles.emptyIcon} />
+              </div>
+              <h2 className={styles.emptyTitle}>
+                {selectedItem.type === "views" && "View Details"}
+                {selectedItem.type === "functions" && "Function Details"}
+                {selectedItem.type === "sequences" && "Sequence Details"}
+              </h2>
+              <p className={styles.emptySubtitle}>
+                {selectedItem.type === "views" &&
+                  "View inspection coming soon. Select a table to view data."}
+                {selectedItem.type === "functions" &&
+                  "Function inspection coming soon. Select a table to view data."}
+                {selectedItem.type === "sequences" &&
+                  "Sequence inspection coming soon. Select a table to view data."}
+              </p>
             </div>
-          </div>
-        )}
-      </main>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

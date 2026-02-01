@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface Connection {
@@ -9,6 +15,7 @@ export interface Connection {
   user: string;
   database: string;
   driver: string;
+  default_schema: string;
 }
 
 interface ConnectionsContextType {
@@ -17,9 +24,15 @@ interface ConnectionsContextType {
   refreshConnections: () => Promise<void>;
 }
 
-const ConnectionsContext = createContext<ConnectionsContextType | undefined>(undefined);
+const ConnectionsContext = createContext<ConnectionsContextType | undefined>(
+  undefined
+);
 
-export function ConnectionsProvider({ children }: { children: React.ReactNode }) {
+export function ConnectionsProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,7 +53,9 @@ export function ConnectionsProvider({ children }: { children: React.ReactNode })
   }, [refreshConnections]);
 
   return (
-    <ConnectionsContext.Provider value={{ connections, isLoading, refreshConnections }}>
+    <ConnectionsContext.Provider
+      value={{ connections, isLoading, refreshConnections }}
+    >
       {children}
     </ConnectionsContext.Provider>
   );
@@ -49,7 +64,7 @@ export function ConnectionsProvider({ children }: { children: React.ReactNode })
 export function useConnections() {
   const context = useContext(ConnectionsContext);
   if (context === undefined) {
-    throw new Error('useConnections must be used within a ConnectionsProvider');
+    throw new Error("useConnections must be used within a ConnectionsProvider");
   }
   return context;
 }
