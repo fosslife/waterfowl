@@ -7,9 +7,14 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "seed": "tsx dev/seed.ts",
+    "seed:small": "SEED_COUNT=10 tsx dev/seed.ts",
+    "seed:large": "SEED_COUNT=1000 tsx dev/seed.ts"
   },
   "dependencies": {
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.18",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "~2.4.2",
@@ -21,10 +26,14 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.2.0",
     "@tauri-apps/cli": "^2",
+    "@types/pg": "^8.16.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "pg": "^8.18.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   }

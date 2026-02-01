@@ -1,10 +1,8 @@
 import {
-  Database,
   Table,
   Eye,
   Code2,
   Hash,
-  HardDrive,
   Server,
   Loader2,
   Terminal,

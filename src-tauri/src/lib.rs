@@ -251,19 +251,29 @@ async fn get_tables(
     Ok(tables)
 }
 
+#[derive(Serialize)]
+pub struct PaginatedTableData {
+    pub rows: Vec<Map<String, Value>>,
+    pub total_count: i64,
+}
+
 #[tauri::command]
 async fn get_table_data(
     state: tauri::State<'_, AppState>,
     id: String,
     table: String,
-    schema: Option<String>
-) -> Result<Vec<Map<String, Value>>, String> {
+    schema: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>
+) -> Result<PaginatedTableData, String> {
     let pool = {
         let pools = state.pools.lock().unwrap();
         pools.get(&id).cloned().ok_or("Not connected")?
     };
 
     let schema_name = schema.unwrap_or_else(|| "public".to_string());
+    let limit_val = limit.unwrap_or(100);
+    let offset_val = offset.unwrap_or(0);
 
     // Sanitize table and schema names (very basic)
     // In production, use proper escaping or check against known tables logic
@@ -274,10 +284,24 @@ async fn get_table_data(
         return Err("Invalid schema name".to_string());
     }
 
-    let rows = sqlx::query(&format!("SELECT * FROM \"{}\".\"{}\" LIMIT 100", schema_name, table))
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    // Get total count
+    let count_row = sqlx::query(&format!(
+        "SELECT COUNT(*) FROM \"{}\".\"{}\"", 
+        schema_name, table
+    ))
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let total_count: i64 = count_row.get(0);
+
+    // Fetch paginated data
+    let rows = sqlx::query(&format!(
+        "SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}", 
+        schema_name, table, limit_val, offset_val
+    ))
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
 
     let mut results = Vec::new();
 
@@ -292,29 +316,110 @@ async fn get_table_data(
             } else {
                 let type_name = col.type_info().name();
                 match type_name {
+                    // Boolean
                     "BOOL" => Value::Bool(row.get(col.ordinal())),
-                    "INT4" | "INT8" | "INT2" => {
+                    
+                    // Integer types - use correct Rust type for each
+                    "INT2" => {
+                        let i: i16 = row.get(col.ordinal());
+                        json!(i)
+                    },
+                    "INT4" => {
+                        let i: i32 = row.get(col.ordinal());
+                        json!(i)
+                    },
+                    "INT8" => {
                         let i: i64 = row.get(col.ordinal());
                         json!(i)
                     },
-                    "FLOAT4" | "FLOAT8" => {
+                    
+                    // Float types - use correct Rust type for each
+                    "FLOAT4" => {
+                        let f: f32 = row.get(col.ordinal());
+                        json!(f)
+                    },
+                    "FLOAT8" => {
                         let f: f64 = row.get(col.ordinal());
                         json!(f)
                     },
-                    "TEXT" | "VARCHAR" | "CHAR" | "NAME" => {
+                    
+                    // Numeric/Decimal - convert to string to preserve precision
+                    "NUMERIC" | "DECIMAL" => {
+                        // sqlx decodes NUMERIC as rust_decimal::Decimal if feature enabled,
+                        // otherwise we try to get as string via raw decoding
+                        match row.try_get::<sqlx::types::BigDecimal, _>(col.ordinal()) {
+                            Ok(d) => Value::String(d.to_string()),
+                            Err(_) => Value::String("[NUMERIC]".to_string())
+                        }
+                    },
+                    
+                    // Text types
+                    "TEXT" | "VARCHAR" | "CHAR" | "BPCHAR" | "NAME" => {
                         let s: String = row.get(col.ordinal());
                         Value::String(s)
                     },
+                    
+                    // JSON types
                     "JSON" | "JSONB" => {
                         let v: Value = row.get(col.ordinal());
                         v
                     },
+                    
+                    // UUID
                     "UUID" => {
-                         let u: uuid::Uuid = row.get(col.ordinal());
-                         Value::String(u.to_string())
-                    }
+                        let u: uuid::Uuid = row.get(col.ordinal());
+                        Value::String(u.to_string())
+                    },
+                    
+                    // Date/Time types - convert to ISO strings
+                    "DATE" => {
+                        let d: chrono::NaiveDate = row.get(col.ordinal());
+                        Value::String(d.to_string())
+                    },
+                    "TIME" => {
+                        let t: chrono::NaiveTime = row.get(col.ordinal());
+                        Value::String(t.to_string())
+                    },
+                    "TIMESTAMP" => {
+                        let ts: chrono::NaiveDateTime = row.get(col.ordinal());
+                        Value::String(ts.to_string())
+                    },
+                    "TIMESTAMPTZ" => {
+                        let ts: chrono::DateTime<chrono::Utc> = row.get(col.ordinal());
+                        Value::String(ts.to_rfc3339())
+                    },
+                    
+                    // Byte array
+                    "BYTEA" => {
+                        let bytes: Vec<u8> = row.get(col.ordinal());
+                        // Display as hex string for readability
+                        Value::String(format!("\\x{}", hex::encode(&bytes)))
+                    },
+                    
+                    // Arrays - try to handle common array types
+                    "_INT4" => {
+                        let arr: Vec<i32> = row.get(col.ordinal());
+                        json!(arr)
+                    },
+                    "_INT8" => {
+                        let arr: Vec<i64> = row.get(col.ordinal());
+                        json!(arr)
+                    },
+                    "_TEXT" | "_VARCHAR" => {
+                        let arr: Vec<String> = row.get(col.ordinal());
+                        json!(arr)
+                    },
+                    "_FLOAT8" => {
+                        let arr: Vec<f64> = row.get(col.ordinal());
+                        json!(arr)
+                    },
+                    
+                    // Fallback: try to get as string, otherwise show type name
                     _ => {
-                        Value::String(format!("[{}]", type_name))
+                        match row.try_get::<String, _>(col.ordinal()) {
+                            Ok(s) => Value::String(s),
+                            Err(_) => Value::String(format!("[{}]", type_name))
+                        }
                     }
                 }
             };
@@ -323,7 +428,10 @@ async fn get_table_data(
         results.push(map);
     }
 
-    Ok(results)
+    Ok(PaginatedTableData {
+        rows: results,
+        total_count,
+    })
 }
 
 #[tauri::command]

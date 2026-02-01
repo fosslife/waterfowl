@@ -473,7 +473,11 @@
 
 .tableContent {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
+  /* Critical for flex child height constraint */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Loader animation */

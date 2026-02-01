@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Trash2,
@@ -9,8 +9,13 @@ import {
   Database,
   LogOut,
 } from "lucide-react";
-import { DataTable } from "../components/ui/DataTable";
+import {
+  DataTable,
+  PaginationState,
+  SelectionActions,
+} from "../components/ui/DataTable";
 import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { SchemaSidebar, SchemaObjects } from "../components/SchemaSidebar";
 import {
   DatabaseDashboard,
@@ -19,6 +24,13 @@ import {
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConnectionDetails.module.css";
+
+interface PaginatedTableData {
+  rows: Record<string, any>[];
+  total_count: number;
+}
+
+const DEFAULT_PAGE_SIZE = 100;
 
 export function ConnectionDetails() {
   const { id } = useParams();
@@ -44,12 +56,80 @@ export function ConnectionDetails() {
   const [tableData, setTableData] = useState<any[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
+  // Pagination state
+  const [pagination, setPagination] = useState<PaginationState>({
+    page: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+    totalCount: 0,
+  });
+
   // UI state
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
+  // Row delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    rows: Record<string, any>[];
+  }>({ isOpen: false, rows: [] });
+
   const connection = connections.find((c) => c.id === id);
+
+  // Selection action handlers
+  const handleCopyRows = useCallback(
+    (rows: Record<string, any>[]) => {
+      // Format rows as tab-separated values (TSV) for spreadsheet compatibility
+      if (rows.length === 0) return;
+
+      const headers = Object.keys(rows[0]);
+      const headerLine = headers.join("\t");
+      const dataLines = rows.map((row) =>
+        headers
+          .map((h) => {
+            const val = row[h];
+            if (val === null || val === undefined) return "";
+            if (typeof val === "object") return JSON.stringify(val);
+            return String(val);
+          })
+          .join("\t")
+      );
+
+      const tsv = [headerLine, ...dataLines].join("\n");
+      navigator.clipboard.writeText(tsv).then(() => {
+        toast.success(
+          `Copied ${rows.length} row${
+            rows.length !== 1 ? "s" : ""
+          } to clipboard`
+        );
+      });
+    },
+    [toast]
+  );
+
+  const handleDeleteRowsRequest = useCallback((rows: Record<string, any>[]) => {
+    setDeleteConfirm({ isOpen: true, rows });
+  }, []);
+
+  const handleDeleteRowsConfirm = useCallback(async () => {
+    // TODO: Implement actual row deletion via backend
+    // For now, just show a placeholder message
+    toast.info(
+      `Delete ${deleteConfirm.rows.length} row${
+        deleteConfirm.rows.length !== 1 ? "s" : ""
+      } - Not yet implemented`
+    );
+    setDeleteConfirm({ isOpen: false, rows: [] });
+  }, [deleteConfirm.rows, toast]);
+
+  const handleDeleteRowsCancel = useCallback(() => {
+    setDeleteConfirm({ isOpen: false, rows: [] });
+  }, []);
+
+  const selectionActions: SelectionActions = {
+    onCopyRows: handleCopyRows,
+    onDeleteRows: handleDeleteRowsRequest,
+  };
 
   const initConnection = async () => {
     if (!id) return;
@@ -119,6 +199,7 @@ export function ConnectionDetails() {
     setActiveSchema(newSchema);
     setSelectedItem(null); // Clear selection when switching schemas
     setTableData([]);
+    setPagination((prev) => ({ ...prev, page: 0, totalCount: 0 })); // Reset pagination
     setIsSchemaLoading(true);
     setIsDbInfoLoading(true);
 
@@ -142,9 +223,9 @@ export function ConnectionDetails() {
     initConnection();
   }, [id]);
 
-  // Fetch data when a table is selected
-  useEffect(() => {
-    async function fetchData() {
+  // Fetch table data with pagination
+  const fetchTableData = useCallback(
+    async (page: number, pageSize: number) => {
       if (!id || !selectedItem || selectedItem.type !== "tables") {
         setTableData([]);
         return;
@@ -152,21 +233,49 @@ export function ConnectionDetails() {
 
       setIsDataLoading(true);
       try {
-        const data = await invoke<any[]>("get_table_data", {
+        const result = await invoke<PaginatedTableData>("get_table_data", {
           id,
           table: selectedItem.name,
           schema: activeSchema,
+          limit: pageSize,
+          offset: page * pageSize,
         });
-        setTableData(data);
+        setTableData(result.rows);
+        setPagination((prev) => ({
+          ...prev,
+          page,
+          pageSize,
+          totalCount: result.total_count,
+        }));
       } catch (e: any) {
         console.error(e);
         toast.error(`Failed to load table data: ${e}`);
       } finally {
         setIsDataLoading(false);
       }
+    },
+    [id, selectedItem, activeSchema, toast]
+  );
+
+  // Fetch data when a table is selected
+  useEffect(() => {
+    if (!id || !selectedItem || selectedItem.type !== "tables") {
+      setTableData([]);
+      setPagination((prev) => ({ ...prev, totalCount: 0, page: 0 }));
+      return;
     }
-    fetchData();
+    // Reset to first page when table changes
+    fetchTableData(0, pagination.pageSize);
   }, [id, selectedItem, activeSchema]);
+
+  const handlePageChange = (newPage: number) => {
+    fetchTableData(newPage, pagination.pageSize);
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    // Reset to first page when page size changes
+    fetchTableData(0, newPageSize);
+  };
 
   const handleSelectItem = (type: string, name: string) => {
     setSelectedItem({ type, name });
@@ -348,10 +457,18 @@ export function ConnectionDetails() {
             <div className={styles.tableView}>
               <div className={styles.tableHeader}>
                 <span className={styles.tableName}>{selectedItem.name}</span>
-                <span className={styles.tableBadge}>LIMIT 100</span>
+                <span className={styles.tableBadge}>TABLE</span>
               </div>
               <div className={styles.tableContent}>
-                <DataTable data={tableData} isLoading={isDataLoading} />
+                <DataTable
+                  data={tableData}
+                  isLoading={isDataLoading}
+                  pagination={pagination}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  selectable
+                  selectionActions={selectionActions}
+                />
               </div>
             </div>
           ) : (
@@ -377,6 +494,22 @@ export function ConnectionDetails() {
           )}
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        title="Delete Rows"
+        message={`Are you sure you want to delete ${
+          deleteConfirm.rows.length
+        } row${
+          deleteConfirm.rows.length !== 1 ? "s" : ""
+        }? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleDeleteRowsConfirm}
+        onCancel={handleDeleteRowsCancel}
+      />
     </div>
   );
 }

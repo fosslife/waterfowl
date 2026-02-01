@@ -72,10 +72,10 @@ export function SchemaSidebar({
     );
 
   const formatRowCount = (count: number | null) => {
-    if (count === null || count < 0) return "~";
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count.toString();
+    if (count === null || count < 0) return "?";
+    if (count >= 1000000) return `~${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `~${(count / 1000).toFixed(1)}K`;
+    return `~${count}`;
   };
 
   if (isLoading) {
