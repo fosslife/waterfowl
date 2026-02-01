@@ -8,6 +8,8 @@ import {
   RefreshCw,
   Database,
   LogOut,
+  X,
+  Terminal,
 } from "lucide-react";
 import {
   DataTable,
@@ -392,18 +394,21 @@ export function ConnectionDetails() {
         {/* Divider */}
         <div className={styles.divider} />
 
-        {/* Selected item indicator */}
-        {selectedItem && selectedItem.type === "tables" && (
-          <>
+        {/* Selected item indicator with back button */}
+        {selectedItem && (
+          <div className={styles.selectedItemIndicator}>
+            <button
+              className={styles.backBtn}
+              onClick={() => setSelectedItem(null)}
+              title="Back to dashboard"
+            >
+              <X size={14} />
+            </button>
             <span className={styles.tableName}>{selectedItem.name}</span>
-            <span className={styles.tableBadge}>TABLE</span>
-          </>
-        )}
-        {selectedItem && selectedItem.type === "views" && (
-          <>
-            <span className={styles.tableName}>{selectedItem.name}</span>
-            <span className={styles.tableBadge}>VIEW</span>
-          </>
+            <span className={styles.tableBadge}>
+              {selectedItem.type === "tables" ? "TABLE" : "VIEW"}
+            </span>
+          </div>
         )}
 
         {/* Spacer */}
@@ -411,6 +416,14 @@ export function ConnectionDetails() {
 
         {/* Actions */}
         <div className={styles.actions}>
+          <button
+            onClick={() => navigate(`/connection/${id}/sql`)}
+            className={styles.sqlEditorBtn}
+            title="Open SQL Editor"
+          >
+            <Terminal size={14} />
+            SQL Editor
+          </button>
           <button
             onClick={handleCloseConnection}
             className={styles.closeBtn}
