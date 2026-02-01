@@ -7,6 +7,7 @@ import { FormSkeleton } from "../components/ui/Skeleton";
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
 import { useNavigate, useParams } from "react-router-dom";
+import styles from "./NewConnection.module.css";
 
 export function NewConnection() {
   const navigate = useNavigate();
@@ -86,51 +87,13 @@ export function NewConnection() {
 
   if (isFetching) {
     return (
-      <div
-        style={{
-          maxWidth: 640,
-          margin: "0 auto",
-          padding: "48px 32px",
-          height: "100%",
-          overflowY: "auto",
-        }}
-      >
-        <div style={{ marginBottom: 32 }}>
-          <div
-            style={{
-              width: 60,
-              height: 16,
-              background: "var(--color-base-200)",
-              borderRadius: 4,
-              marginBottom: 16,
-            }}
-          />
-          <div
-            style={{
-              width: 200,
-              height: 28,
-              background: "var(--color-base-200)",
-              borderRadius: 4,
-              marginBottom: 8,
-            }}
-          />
-          <div
-            style={{
-              width: 280,
-              height: 16,
-              background: "var(--color-base-200)",
-              borderRadius: 4,
-            }}
-          />
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <div className={`${styles.skeletonBar} ${styles.skeletonTitle}`} />
+          <div className={`${styles.skeletonBar} ${styles.skeletonHeading}`} />
+          <div className={`${styles.skeletonBar} ${styles.skeletonSubtitle}`} />
         </div>
-        <div
-          style={{
-            padding: 24,
-            background: "var(--color-base-100)",
-            borderRadius: 8,
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
+        <div className={styles.skeletonCard}>
           <FormSkeleton fields={5} />
         </div>
       </div>
@@ -138,106 +101,30 @@ export function NewConnection() {
   }
 
   return (
-    <div
-      style={{
-        maxWidth: 640,
-        margin: "0 auto",
-        padding: "48px 32px",
-        height: "100%",
-        overflowY: "auto",
-      }}
-    >
-      <div style={{ marginBottom: 32 }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "var(--color-text-tertiary)",
-            background: "transparent",
-            marginBottom: 16,
-            fontSize: "var(--text-sm)",
-            transition: "color var(--transition-fast)",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.color = "var(--color-accent-primary)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.color = "var(--color-text-tertiary)")
-          }
-        >
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <button onClick={() => navigate(-1)} className={styles.backButton}>
           <MoveLeft size={16} />
           Back
         </button>
-        <h1
-          style={{
-            fontSize: "var(--text-2xl)",
-            fontWeight: "var(--weight-bold)",
-            color: "var(--color-text-primary)",
-            marginBottom: 4,
-          }}
-        >
+        <h1 className={styles.title}>
           {id ? "Edit Connection" : "New Connection"}
         </h1>
-        <p style={{ color: "var(--color-text-secondary)" }}>
+        <p className={styles.subtitle}>
           {id
             ? "Update your database connection details"
             : "Configure a new PostgreSQL database connection"}
         </p>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 24,
-          paddingBottom: 32,
-        }}
-      >
+      <form onSubmit={handleSubmit} className={styles.form}>
         {/* General Info Card */}
-        <div
-          style={{
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid var(--border-subtle)",
-            background: "var(--color-base-100)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 6,
-                background: "rgba(0, 243, 255, 0.1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Database
-                size={16}
-                style={{ color: "var(--color-accent-primary)" }}
-              />
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardIconWrapper}>
+              <Database size={16} className={styles.cardIcon} />
             </div>
-            <h2
-              style={{
-                fontSize: "var(--text-base)",
-                fontWeight: "var(--weight-medium)",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              General Info
-            </h2>
+            <h2 className={styles.cardTitle}>General Info</h2>
           </div>
           <Input
             id="name"
@@ -249,52 +136,15 @@ export function NewConnection() {
         </div>
 
         {/* Connection Details Card */}
-        <div
-          style={{
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid var(--border-subtle)",
-            background: "var(--color-base-100)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 6,
-                background: "rgba(0, 243, 255, 0.1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Server
-                size={16}
-                style={{ color: "var(--color-accent-primary)" }}
-              />
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardIconWrapper}>
+              <Server size={16} className={styles.cardIcon} />
             </div>
-            <h2
-              style={{
-                fontSize: "var(--text-base)",
-                fontWeight: "var(--weight-medium)",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Server Connection
-            </h2>
+            <h2 className={styles.cardTitle}>Server Connection</h2>
           </div>
 
-          <div
-            style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}
-          >
+          <div className={styles.gridTwoThird}>
             <Input
               id="host"
               label="Host"
@@ -311,7 +161,7 @@ export function NewConnection() {
             />
           </div>
 
-          <div style={{ marginTop: 16 }}>
+          <div className={styles.fieldSpacing}>
             <Input
               id="database"
               label="Database Name"
@@ -323,49 +173,15 @@ export function NewConnection() {
         </div>
 
         {/* Authentication Card */}
-        <div
-          style={{
-            padding: 24,
-            borderRadius: 8,
-            border: "1px solid var(--border-subtle)",
-            background: "var(--color-base-100)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 6,
-                background: "rgba(0, 243, 255, 0.1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Key size={16} style={{ color: "var(--color-accent-primary)" }} />
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardIconWrapper}>
+              <Key size={16} className={styles.cardIcon} />
             </div>
-            <h2
-              style={{
-                fontSize: "var(--text-base)",
-                fontWeight: "var(--weight-medium)",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              Authentication
-            </h2>
+            <h2 className={styles.cardTitle}>Authentication</h2>
           </div>
 
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
-          >
+          <div className={styles.gridHalf}>
             <Input
               id="user"
               label="User"
@@ -384,14 +200,7 @@ export function NewConnection() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: 8,
-          }}
-        >
+        <div className={styles.actions}>
           <Button
             type="button"
             variant="secondary"
@@ -402,7 +211,7 @@ export function NewConnection() {
             <Zap size={14} />
             Test Connection
           </Button>
-          <div style={{ display: "flex", gap: 12 }}>
+          <div className={styles.actionGroup}>
             <Button
               type="button"
               variant="ghost"

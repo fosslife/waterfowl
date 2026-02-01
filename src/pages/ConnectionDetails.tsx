@@ -17,7 +17,7 @@ import { DataTable } from "../components/ui/DataTable";
 import { Button } from "../components/ui/Button";
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
-import clsx from "clsx";
+import styles from "./ConnectionDetails.module.css";
 
 export function ConnectionDetails() {
   const { id } = useParams();
@@ -118,104 +118,35 @@ export function ConnectionDetails() {
 
   if (error) {
     return (
-      <div
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 48,
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 480,
-            width: "100%",
-            padding: 32,
-            background: "var(--color-base-100)",
-            borderRadius: 8,
-            border: "1px solid var(--color-accent-secondary)",
-            boxShadow: "0 0 30px rgba(255, 0, 85, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              marginBottom: 20,
-            }}
-          >
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 8,
-                background: "rgba(255, 0, 85, 0.1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AlertTriangle
-                size={20}
-                style={{ color: "var(--color-accent-secondary)" }}
-              />
+      <div className={styles.errorContainer}>
+        <div className={styles.errorCard}>
+          <div className={styles.errorHeader}>
+            <div className={styles.errorIconWrapper}>
+              <AlertTriangle size={20} className={styles.errorIcon} />
             </div>
             <div>
-              <h2
-                style={{
-                  fontSize: "var(--text-lg)",
-                  fontWeight: "var(--weight-bold)",
-                  color: "var(--color-accent-secondary)",
-                }}
-              >
-                Connection Failed
-              </h2>
-              <p
-                style={{
-                  fontSize: "var(--text-xs)",
-                  color: "var(--color-text-tertiary)",
-                }}
-              >
+              <h2 className={styles.errorTitle}>Connection Failed</h2>
+              <p className={styles.errorSubtitle}>
                 Unable to establish database connection
               </p>
             </div>
           </div>
-          <div
-            style={{
-              padding: 16,
-              background: "var(--color-base-50)",
-              borderRadius: 6,
-              border: "1px solid var(--border-subtle)",
-              marginBottom: 24,
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "var(--text-xs)",
-                color: "var(--color-text-secondary)",
-                wordBreak: "break-word",
-                lineHeight: 1.6,
-              }}
-            >
-              {error}
-            </p>
+          <div className={styles.errorMessage}>
+            <p className={styles.errorText}>{error}</p>
           </div>
-          <div style={{ display: "flex", gap: 12 }}>
+          <div className={styles.errorActions}>
             <Button
               variant="secondary"
               onClick={handleRetry}
               isLoading={isRetrying}
-              style={{ flex: 1 }}
+              className={styles.errorActionBtn}
             >
               <RefreshCw size={14} /> Retry
             </Button>
             <Button
               variant="ghost"
               onClick={() => navigate(`/edit-connection/${id}`)}
-              style={{ flex: 1 }}
+              className={styles.errorActionBtn}
             >
               <Edit size={14} /> Edit
             </Button>
@@ -233,96 +164,38 @@ export function ConnectionDetails() {
   }
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <div className={styles.page}>
       {/* Header Bar */}
-      <header
-        style={{
-          height: 56,
-          borderBottom: "1px solid var(--border-subtle)",
-          background: "var(--color-base-50)",
-          display: "flex",
-          alignItems: "center",
-          padding: "0 24px",
-          gap: 16,
-          flexShrink: 0,
-        }}
-      >
+      <header className={styles.header}>
         {/* Connection info */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              background: "rgba(0, 243, 255, 0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Database
-              size={14}
-              style={{ color: "var(--color-accent-primary)" }}
-            />
+        <div className={styles.connectionInfo}>
+          <div className={styles.connectionIconWrapper}>
+            <Database size={14} className={styles.connectionIcon} />
           </div>
           <div>
-            <div
-              style={{
-                fontSize: "var(--text-sm)",
-                fontWeight: "var(--weight-medium)",
-                color: "var(--color-text-primary)",
-              }}
-            >
+            <div className={styles.connectionName}>
               {connection?.name || "Connection"}
             </div>
-            <div
-              style={{
-                fontSize: "0.65rem",
-                color: "var(--color-text-tertiary)",
-                fontFamily: "var(--font-mono)",
-              }}
-            >
+            <div className={styles.connectionHost}>
               {connection?.host}:{connection?.port}/{connection?.database}
             </div>
           </div>
         </div>
 
         {/* Divider */}
-        <div
-          style={{ width: 1, height: 24, background: "var(--border-subtle)" }}
-        />
+        <div className={styles.divider} />
 
         {/* Table selector dropdown */}
-        <div ref={dropdownRef} style={{ position: "relative" }}>
+        <div ref={dropdownRef} className={styles.dropdownWrapper}>
           <button
             onClick={() => setIsTableDropdownOpen(!isTableDropdownOpen)}
             disabled={isSchemaLoading}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "6px 12px",
-              background: selectedTable
-                ? "var(--color-base-200)"
-                : "var(--color-base-100)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: 6,
-              color: selectedTable
-                ? "var(--color-accent-primary)"
-                : "var(--color-text-secondary)",
-              fontSize: "var(--text-sm)",
-              fontFamily: selectedTable ? "var(--font-mono)" : "inherit",
-              cursor: "pointer",
-              minWidth: 180,
-              justifyContent: "space-between",
-            }}
+            className={styles.dropdownTrigger}
+            data-has-selection={!!selectedTable}
           >
-            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className={styles.dropdownTriggerContent}>
               {isSchemaLoading ? (
-                <Loader2
-                  size={14}
-                  style={{ animation: "spin 1s linear infinite" }}
-                />
+                <Loader2 size={14} className={styles.spinner} />
               ) : (
                 <Table size={14} />
               )}
@@ -330,78 +203,29 @@ export function ConnectionDetails() {
             </span>
             <ChevronDown
               size={14}
-              style={{
-                transform: isTableDropdownOpen ? "rotate(180deg)" : "rotate(0)",
-                transition: "transform 0.2s",
-              }}
+              className={styles.dropdownChevron}
+              data-open={isTableDropdownOpen}
             />
           </button>
 
           {/* Dropdown menu */}
           {isTableDropdownOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "calc(100% + 4px)",
-                left: 0,
-                width: 280,
-                maxHeight: 320,
-                background: "var(--color-base-100)",
-                border: "1px solid var(--border-subtle)",
-                borderRadius: 8,
-                boxShadow: "var(--shadow-lg)",
-                zIndex: 1000,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
+            <div className={styles.dropdownMenu}>
               {/* Search */}
-              <div
-                style={{
-                  padding: 8,
-                  borderBottom: "1px solid var(--border-subtle)",
-                }}
-              >
-                <div style={{ position: "relative" }}>
-                  <Search
-                    size={14}
-                    style={{
-                      position: "absolute",
-                      left: 10,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "var(--color-text-tertiary)",
-                    }}
-                  />
+              <div className={styles.dropdownSearch}>
+                <div className={styles.searchInputWrapper}>
+                  <Search size={14} className={styles.searchIcon} />
                   <input
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     placeholder="Search tables..."
                     autoFocus
-                    style={{
-                      width: "100%",
-                      padding: "8px 8px 8px 32px",
-                      background: "var(--color-base-50)",
-                      border: "1px solid var(--border-subtle)",
-                      borderRadius: 4,
-                      color: "var(--color-text-primary)",
-                      fontSize: "var(--text-xs)",
-                    }}
+                    className={styles.searchInput}
                   />
                   {filter && (
                     <button
                       onClick={() => setFilter("")}
-                      style={{
-                        position: "absolute",
-                        right: 8,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        background: "transparent",
-                        color: "var(--color-text-tertiary)",
-                        padding: 2,
-                        borderRadius: 4,
-                      }}
+                      className={styles.searchClear}
                     >
                       <X size={12} />
                     </button>
@@ -410,18 +234,9 @@ export function ConnectionDetails() {
               </div>
 
               {/* Table list */}
-              <div style={{ flex: 1, overflowY: "auto", padding: 4 }}>
+              <div className={styles.dropdownList}>
                 {filteredTables.length === 0 ? (
-                  <div
-                    style={{
-                      padding: 24,
-                      textAlign: "center",
-                      color: "var(--color-text-tertiary)",
-                      fontSize: "var(--text-xs)",
-                    }}
-                  >
-                    No tables found
-                  </div>
+                  <div className={styles.dropdownEmpty}>No tables found</div>
                 ) : (
                   filteredTables.map((table) => (
                     <button
@@ -431,61 +246,18 @@ export function ConnectionDetails() {
                         setIsTableDropdownOpen(false);
                         setFilter("");
                       }}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "8px 12px",
-                        background:
-                          selectedTable === table
-                            ? "var(--color-base-200)"
-                            : "transparent",
-                        border: "none",
-                        borderRadius: 4,
-                        color:
-                          selectedTable === table
-                            ? "var(--color-accent-primary)"
-                            : "var(--color-text-secondary)",
-                        fontSize: "var(--text-sm)",
-                        fontFamily: "var(--font-mono)",
-                        cursor: "pointer",
-                        textAlign: "left",
-                      }}
+                      className={styles.dropdownItem}
+                      data-selected={selectedTable === table}
                     >
-                      <Table
-                        size={14}
-                        style={{
-                          color:
-                            selectedTable === table
-                              ? "var(--color-accent-primary)"
-                              : "var(--color-text-tertiary)",
-                        }}
-                      />
-                      <span
-                        style={{
-                          flex: 1,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {table}
-                      </span>
+                      <Table size={14} className={styles.dropdownItemIcon} />
+                      <span className={styles.dropdownItemText}>{table}</span>
                     </button>
                   ))
                 )}
               </div>
 
               {/* Footer with count */}
-              <div
-                style={{
-                  padding: "8px 12px",
-                  borderTop: "1px solid var(--border-subtle)",
-                  fontSize: "0.65rem",
-                  color: "var(--color-text-tertiary)",
-                }}
-              >
+              <div className={styles.dropdownFooter}>
                 {tables.length} tables
               </div>
             </div>
@@ -493,25 +265,14 @@ export function ConnectionDetails() {
         </div>
 
         {/* Spacer */}
-        <div style={{ flex: 1 }} />
+        <div className={styles.spacer} />
 
         {/* Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div className={styles.actions}>
           <button
             onClick={() => navigate(`/edit-connection/${id}`)}
             title="Edit Connection"
-            style={{
-              width: 32,
-              height: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: "none",
-              borderRadius: 6,
-              color: "var(--color-text-tertiary)",
-              cursor: "pointer",
-            }}
+            className={styles.actionBtn}
           >
             <Edit size={16} />
           </button>
@@ -519,18 +280,7 @@ export function ConnectionDetails() {
             onClick={handleDelete}
             disabled={isDeleting}
             title="Delete Connection"
-            style={{
-              width: 32,
-              height: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: "none",
-              borderRadius: 6,
-              color: "var(--color-text-tertiary)",
-              cursor: "pointer",
-            }}
+            className={styles.actionBtn}
           >
             <Trash2 size={16} />
           </button>
@@ -538,100 +288,30 @@ export function ConnectionDetails() {
       </header>
 
       {/* Main content */}
-      <main
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
+      <main className={styles.main}>
         {!selectedTable ? (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 48,
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: 16,
-                background: "var(--color-base-100)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 24,
-              }}
-            >
-              <Table
-                size={36}
-                style={{ color: "var(--color-text-tertiary)", opacity: 0.5 }}
-              />
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIconWrapper}>
+              <Table size={36} className={styles.emptyIcon} />
             </div>
-            <h2
-              style={{
-                fontSize: "var(--text-lg)",
-                fontWeight: "var(--weight-medium)",
-                color: "var(--color-text-primary)",
-                marginBottom: 8,
-              }}
-            >
-              Select a Table
-            </h2>
-            <p
-              style={{
-                fontSize: "var(--text-sm)",
-                color: "var(--color-text-tertiary)",
-                maxWidth: 300,
-              }}
-            >
+            <h2 className={styles.emptyTitle}>Select a Table</h2>
+            <p className={styles.emptySubtitle}>
               Choose a table from the dropdown above to view and explore its
               data.
             </p>
             {tables.length > 0 && (
-              <div
-                style={{
-                  marginTop: 24,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  justifyContent: "center",
-                  maxWidth: 400,
-                }}
-              >
+              <div className={styles.quickTables}>
                 {tables.slice(0, 5).map((table) => (
                   <button
                     key={table}
                     onClick={() => setSelectedTable(table)}
-                    style={{
-                      padding: "6px 12px",
-                      background: "var(--color-base-100)",
-                      border: "1px solid var(--border-subtle)",
-                      borderRadius: 6,
-                      color: "var(--color-text-secondary)",
-                      fontSize: "var(--text-xs)",
-                      fontFamily: "var(--font-mono)",
-                      cursor: "pointer",
-                    }}
+                    className={styles.quickTableBtn}
                   >
                     {table}
                   </button>
                 ))}
                 {tables.length > 5 && (
-                  <span
-                    style={{
-                      padding: "6px 12px",
-                      fontSize: "var(--text-xs)",
-                      color: "var(--color-text-tertiary)",
-                    }}
-                  >
+                  <span className={styles.quickTableMore}>
                     +{tables.length - 5} more
                   </span>
                 )}
@@ -639,53 +319,14 @@ export function ConnectionDetails() {
             )}
           </div>
         ) : (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
+          <div className={styles.tableView}>
             {/* Table header bar */}
-            <div
-              style={{
-                height: 44,
-                borderBottom: "1px solid var(--border-subtle)",
-                display: "flex",
-                alignItems: "center",
-                padding: "0 24px",
-                gap: 12,
-                background: "var(--color-base-50)",
-                flexShrink: 0,
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "var(--text-sm)",
-                  fontWeight: "var(--weight-bold)",
-                  color: "var(--color-accent-primary)",
-                }}
-              >
-                {selectedTable}
-              </span>
-              <span
-                style={{
-                  fontSize: "0.65rem",
-                  color: "var(--color-text-tertiary)",
-                  background: "var(--color-base-200)",
-                  padding: "2px 8px",
-                  borderRadius: 4,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                }}
-              >
-                LIMIT 100
-              </span>
+            <div className={styles.tableHeader}>
+              <span className={styles.tableName}>{selectedTable}</span>
+              <span className={styles.tableBadge}>LIMIT 100</span>
             </div>
             {/* Data table with padding */}
-            <div style={{ flex: 1, overflow: "hidden", padding: "0" }}>
+            <div className={styles.tableContent}>
               <DataTable data={tableData} isLoading={isDataLoading} />
             </div>
           </div>

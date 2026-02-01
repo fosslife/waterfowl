@@ -132,6 +132,10 @@
   white-space: nowrap;
 }
 
+.connectionsSectionTitle {
+  margin-top: 1.25rem;
+}
+
 .connectionCount {
   background: var(--color-base-200);
   color: var(--color-text-secondary);

@@ -5,7 +5,6 @@ import {
   Circle,
   PanelLeftClose,
   PanelLeft,
-  Home,
 } from "lucide-react";
 import { NavLink, Outlet, useParams, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -87,8 +86,7 @@ export function AppLayout() {
 
           {showExpanded && (
             <div
-              className={styles.sectionTitle}
-              style={{ marginTop: "1.25rem" }}
+              className={`${styles.sectionTitle} ${styles.connectionsSectionTitle}`}
             >
               <span>Connections</span>
               {connections.length > 0 && (
