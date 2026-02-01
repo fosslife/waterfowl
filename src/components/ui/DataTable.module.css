@@ -16,12 +16,11 @@
 }
 
 .table {
-  width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  min-width: 600px;
+  min-width: 100%;
 }
 
 .table th {
@@ -31,16 +30,13 @@
   color: var(--color-text-secondary);
   font-weight: var(--weight-medium);
   border-bottom: 2px solid var(--color-accent-primary);
-  position: sticky;
-  top: 0;
-  z-index: 10;
   white-space: nowrap;
 }
 
 .sortableHeader {
-  cursor: pointer;
   user-select: none;
   transition: background var(--transition-fast);
+  position: relative;
 }
 
 .sortableHeader:hover {
@@ -52,6 +48,31 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  cursor: pointer;
+}
+
+/* Column resize handle */
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 5px;
+  background: transparent;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  z-index: 11;
+}
+
+.resizer:hover {
+  background: var(--color-accent-primary);
+  opacity: 0.5;
+}
+
+.resizer.isResizing {
+  background: var(--color-accent-primary);
+  opacity: 1;
 }
 
 .sortIcon {
@@ -86,6 +107,14 @@
   user-select: none;
 }
 
+/* Thead sticky for virtualization */
+.table thead {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
 /* Tbody for virtualization */
 .table tbody {
   display: block;
@@ -93,13 +122,11 @@
 
 .table tbody tr {
   display: table;
-  width: 100%;
   table-layout: fixed;
 }
 
 .table thead tr {
   display: table;
-  width: 100%;
   table-layout: fixed;
 }
 
@@ -108,7 +135,6 @@
   border-bottom: 1px solid var(--color-base-200);
   color: var(--color-text-primary);
   white-space: nowrap;
-  max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
   transition: background var(--transition-fast);

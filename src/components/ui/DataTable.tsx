@@ -21,6 +21,7 @@ import {
   flexRender,
   type ColumnDef,
   type SortingState,
+  type ColumnSizingState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import styles from "./DataTable.module.css";
@@ -67,6 +68,7 @@ export function DataTable({
   selectionActions,
 }: DataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(
     new Set()
   );
@@ -132,6 +134,9 @@ export function DataTable({
         const value = getValue();
         return formatValue(value);
       },
+      size: 150, // Default column width
+      minSize: 50,
+      maxSize: 500,
       meta: {
         // Use PostgreSQL type from metadata if available, otherwise infer
         type: columnTypeMap[key] || inferType(data, key),
@@ -144,8 +149,12 @@ export function DataTable({
     columns,
     state: {
       sorting,
+      columnSizing,
     },
     onSortingChange: setSorting,
+    onColumnSizingChange: setColumnSizing,
+    columnResizeMode: "onChange",
+    enableColumnResizing: true,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
@@ -182,6 +191,10 @@ export function DataTable({
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
+  // Calculate total table width: fixed columns + resizable columns
+  const fixedColumnsWidth = (selectable ? 40 : 0) + 50; // checkbox (40) + row index (50)
+  const totalTableWidth = fixedColumnsWidth + table.getTotalSize();
+
   return (
     <div className={styles.container}>
       {/* Selection Toolbar */}
@@ -203,10 +216,10 @@ export function DataTable({
       )}
 
       <div className={styles.wrapper} ref={tableContainerRef}>
-        <table className={styles.table}>
+        <table className={styles.table} style={{ width: totalTableWidth }}>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
+              <tr key={headerGroup.id} style={{ width: totalTableWidth }}>
                 {selectable && (
                   <th className={styles.checkboxCell}>
                     <label className={styles.checkbox}>
@@ -238,11 +251,13 @@ export function DataTable({
                   return (
                     <th
                       key={header.id}
-                      onClick={header.column.getToggleSortingHandler()}
                       className={styles.sortableHeader}
                       style={{ width: header.getSize() }}
                     >
-                      <div className={styles.headerContent}>
+                      <div
+                        className={styles.headerContent}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
                         <div>
                           <span className={styles.columnName}>
                             {flexRender(
@@ -259,6 +274,14 @@ export function DataTable({
                           {sortDirection === "desc" && <ArrowDown size={12} />}
                         </span>
                       </div>
+                      {/* Column resize handle */}
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        className={`${styles.resizer} ${
+                          header.column.getIsResizing() ? styles.isResizing : ""
+                        }`}
+                      />
                     </th>
                   );
                 })}
@@ -286,7 +309,7 @@ export function DataTable({
                     position: "absolute",
                     top: 0,
                     left: 0,
-                    width: "100%",
+                    width: totalTableWidth,
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
@@ -315,7 +338,11 @@ export function DataTable({
                   {row.getVisibleCells().map((cell) => {
                     const value = cell.getValue();
                     return (
-                      <td key={cell.id} className={getCellClass(value)}>
+                      <td
+                        key={cell.id}
+                        className={getCellClass(value)}
+                        style={{ width: cell.column.getSize() }}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()

@@ -464,10 +464,6 @@ export function ConnectionDetails() {
           ) : selectedItem.type === "tables" ? (
             // Table data view
             <div className={styles.tableView}>
-              <div className={styles.tableHeader}>
-                <span className={styles.tableName}>{selectedItem.name}</span>
-                <span className={styles.tableBadge}>TABLE</span>
-              </div>
               <div className={styles.tableContent}>
                 <DataTable
                   data={tableData}
