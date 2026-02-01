@@ -36,8 +36,14 @@ export interface SelectionActions {
   onDeleteRows?: (rows: Record<string, any>[]) => void;
 }
 
+export interface ColumnInfo {
+  name: string;
+  pg_type: string;
+}
+
 interface DataTableProps {
   data: Record<string, any>[];
+  columnInfo?: ColumnInfo[];
   isLoading?: boolean;
   emptyMessage?: string;
   pagination?: PaginationState;
@@ -51,6 +57,7 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100, 250, 500];
 
 export function DataTable({
   data,
+  columnInfo,
   isLoading,
   emptyMessage = "No data found",
   pagination,
@@ -102,6 +109,17 @@ export function DataTable({
   const isSomeSelected =
     selectedIndices.size > 0 && selectedIndices.size < data.length;
 
+  // Build a lookup map for column types from columnInfo
+  const columnTypeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (columnInfo) {
+      for (const col of columnInfo) {
+        map[col.name] = col.pg_type;
+      }
+    }
+    return map;
+  }, [columnInfo]);
+
   // Generate columns dynamically from data
   const columns = useMemo<ColumnDef<Record<string, any>>[]>(() => {
     if (data.length === 0) return [];
@@ -115,10 +133,11 @@ export function DataTable({
         return formatValue(value);
       },
       meta: {
-        type: inferType(data, key),
+        // Use PostgreSQL type from metadata if available, otherwise infer
+        type: columnTypeMap[key] || inferType(data, key),
       },
     }));
-  }, [data]);
+  }, [data, columnTypeMap]);
 
   const table = useReactTable({
     data,
@@ -309,17 +328,17 @@ export function DataTable({
             })}
           </tbody>
         </table>
-        <div className={styles.tableFooter}>
-          {pagination ? (
-            <PaginationControls
-              pagination={pagination}
-              onPageChange={onPageChange}
-              onPageSizeChange={onPageSizeChange}
-            />
-          ) : (
-            <span className={styles.rowCount}>{data.length} rows</span>
-          )}
-        </div>
+      </div>
+      <div className={styles.tableFooter}>
+        {pagination ? (
+          <PaginationControls
+            pagination={pagination}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+          />
+        ) : (
+          <span className={styles.rowCount}>{data.length} rows</span>
+        )}
       </div>
     </div>
   );

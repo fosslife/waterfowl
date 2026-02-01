@@ -24,7 +24,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.20.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
 tauri-plugin-store = "2"
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "bigdecimal"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "bigdecimal", "ipnetwork", "mac_address"] }
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
+ipnetwork = "0.20"
+mac_address = "1.1"
 

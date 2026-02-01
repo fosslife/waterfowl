@@ -25,9 +25,15 @@ import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
 import styles from "./ConnectionDetails.module.css";
 
+interface ColumnInfo {
+  name: string;
+  pg_type: string;
+}
+
 interface PaginatedTableData {
   rows: Record<string, any>[];
   total_count: number;
+  columns: ColumnInfo[];
 }
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -54,6 +60,7 @@ export function ConnectionDetails() {
     name: string;
   } | null>(null);
   const [tableData, setTableData] = useState<any[]>([]);
+  const [columnInfo, setColumnInfo] = useState<ColumnInfo[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
   // Pagination state
@@ -199,6 +206,7 @@ export function ConnectionDetails() {
     setActiveSchema(newSchema);
     setSelectedItem(null); // Clear selection when switching schemas
     setTableData([]);
+    setColumnInfo([]);
     setPagination((prev) => ({ ...prev, page: 0, totalCount: 0 })); // Reset pagination
     setIsSchemaLoading(true);
     setIsDbInfoLoading(true);
@@ -241,6 +249,7 @@ export function ConnectionDetails() {
           offset: page * pageSize,
         });
         setTableData(result.rows);
+        setColumnInfo(result.columns || []);
         setPagination((prev) => ({
           ...prev,
           page,
@@ -462,6 +471,7 @@ export function ConnectionDetails() {
               <div className={styles.tableContent}>
                 <DataTable
                   data={tableData}
+                  columnInfo={columnInfo}
                   isLoading={isDataLoading}
                   pagination={pagination}
                   onPageChange={handlePageChange}
