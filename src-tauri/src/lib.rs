@@ -66,6 +66,47 @@ fn get_connections(app_handle: tauri::AppHandle) -> Result<Vec<ConnectionConfig>
 }
 
 #[tauri::command]
+fn get_connection(
+    app_handle: tauri::AppHandle,
+    id: String
+) -> Result<ConnectionConfig, String> {
+    let store = app_handle
+        .store("connections.json")
+        .map_err(|e| e.to_string())?;
+
+    let value = store.get(id).ok_or("Connection not found")?;
+    let conn = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    Ok(conn)
+}
+
+#[tauri::command]
+fn delete_connection(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: String
+) -> Result<(), String> {
+    let store = app_handle
+        .store("connections.json")
+        .map_err(|e| e.to_string())?;
+
+    store.delete(id.clone());
+    store.save().map_err(|e| e.to_string())?;
+
+    // Remove from active pools if exists
+    let mut pools = state.pools.lock().unwrap();
+    if let Some(pool) = pools.remove(&id) {
+        // Pool is dropped effectively here (async close happens when all refs drop)
+        // We can't await close() here easily in sync fn without block_on, 
+        // but dropping usually suffices for eventual cleanup or let tokio handle it.
+        // For explicitly closing: 
+        // tauri::async_runtime::spawn(async move { pool.close().await; });
+        let _ = pool; 
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn test_connection(connection: ConnectionConfig) -> Result<String, String> {
     let url = format!(
         "postgres://{}:{}@{}:{}/{}",
@@ -121,6 +162,9 @@ async fn establish_connection(
 
 use sqlx::Row; // Add import
 
+use sqlx::{Column, TypeInfo, ValueRef};
+use serde_json::{Map, Value};
+
 #[tauri::command]
 async fn get_tables(
     state: tauri::State<'_, AppState>,
@@ -142,6 +186,75 @@ async fn get_tables(
     Ok(tables)
 }
 
+#[tauri::command]
+async fn get_table_data(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    table: String
+) -> Result<Vec<Map<String, Value>>, String> {
+    let pool = {
+        let pools = state.pools.lock().unwrap();
+        pools.get(&id).cloned().ok_or("Not connected")?
+    };
+
+    // Sanitize table name (very basic)
+    // In production, use proper escaping or check against known tables logic
+    if !table.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return Err("Invalid table name".to_string());
+    }
+
+    let rows = sqlx::query(&format!("SELECT * FROM \"{}\" LIMIT 100", table))
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut results = Vec::new();
+
+    for row in rows {
+        let mut map = Map::new();
+        for col in row.columns() {
+            let col_name = col.name();
+            let value_ref = row.try_get_raw(col.ordinal()).unwrap();
+            
+            let val = if value_ref.is_null() {
+                Value::Null
+            } else {
+                let type_name = col.type_info().name();
+                match type_name {
+                    "BOOL" => Value::Bool(row.get(col.ordinal())),
+                    "INT4" | "INT8" | "INT2" => {
+                        let i: i64 = row.get(col.ordinal());
+                        json!(i)
+                    },
+                    "FLOAT4" | "FLOAT8" => {
+                        let f: f64 = row.get(col.ordinal());
+                        json!(f)
+                    },
+                    "TEXT" | "VARCHAR" | "CHAR" | "NAME" => {
+                        let s: String = row.get(col.ordinal());
+                        Value::String(s)
+                    },
+                    "JSON" | "JSONB" => {
+                        let v: Value = row.get(col.ordinal());
+                        v
+                    },
+                    "UUID" => {
+                         let u: uuid::Uuid = row.get(col.ordinal());
+                         Value::String(u.to_string())
+                    }
+                    _ => {
+                        Value::String(format!("[{}]", type_name))
+                    }
+                }
+            };
+            map.insert(col_name.to_string(), val);
+        }
+        results.push(map);
+    }
+
+    Ok(results)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -155,7 +268,10 @@ pub fn run() {
             get_connections,
             test_connection,
             establish_connection,
-            get_tables
+            get_tables,
+            get_table_data,
+            get_connection,
+            delete_connection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

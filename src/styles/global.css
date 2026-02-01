@@ -1,6 +1,8 @@
-@import './design-tokens.css';
+@import "./design-tokens.css";
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -47,34 +49,113 @@ button {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--color-base-50); 
+  background: var(--color-base-50);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--color-base-300); 
-    border-radius: var(--radius-sm);
+  background: var(--color-base-300);
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-base-400); 
+  background: var(--color-base-400);
 }
 
 /* Utilities */
-.w-full { width: 100%; }
-.h-full { height: 100%; }
-.flex { display: flex; }
-.grid { display: grid; }
-.items-center { align-items: center; }
-.justify-center { justify-content: center; }
-.flex-col { flex-direction: column; }
-.gap-2 { gap: var(--space-2); }
-.gap-4 { gap: var(--space-4); }
+.w-full {
+  width: 100%;
+}
+.h-full {
+  height: 100%;
+}
+.flex {
+  display: flex;
+}
+.grid {
+  display: grid;
+}
+.items-center {
+  align-items: center;
+}
+.justify-center {
+  justify-content: center;
+}
+.flex-col {
+  flex-direction: column;
+}
+.gap-2 {
+  gap: var(--space-2);
+}
+.gap-4 {
+  gap: var(--space-4);
+}
 
-.text-accent { color: var(--color-accent-primary); }
-.text-mono { font-family: var(--font-mono); }
-.font-bold { font-weight: var(--weight-bold); }
+.text-accent {
+  color: var(--color-accent-primary);
+}
+.text-mono {
+  font-family: var(--font-mono);
+}
+.font-bold {
+  font-weight: var(--weight-bold);
+}
+
+/* Animation utilities */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Selection styling */
+::selection {
+  background: var(--color-accent-primary);
+  color: var(--color-base-0);
+}
+
+/* Focus visible for keyboard nav */
+:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: 2px;
+}
