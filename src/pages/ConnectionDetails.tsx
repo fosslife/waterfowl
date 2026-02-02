@@ -8,7 +8,6 @@ import {
   RefreshCw,
   Database,
   LogOut,
-  X,
   Terminal,
 } from "lucide-react";
 import {
@@ -16,6 +15,7 @@ import {
   PaginationState,
   SelectionActions,
 } from "../components/ui/DataTable";
+import { TabBar } from "../components/ui/TabBar";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { SchemaSidebar, SchemaObjects } from "../components/SchemaSidebar";
@@ -23,8 +23,10 @@ import {
   DatabaseDashboard,
   DatabaseInfo,
 } from "../components/DatabaseDashboard";
+import { SqlEditorTab } from "../components/SqlEditorTab";
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
+import { TabProvider, useTabs, TableTab, SqlTab } from "../context/TabContext";
 import styles from "./ConnectionDetails.module.css";
 
 interface ColumnInfo {
@@ -40,11 +42,21 @@ interface PaginatedTableData {
 
 const DEFAULT_PAGE_SIZE = 100;
 
-export function ConnectionDetails() {
+// Inner component that uses tab context
+function ConnectionWorkspace() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { connections, refreshConnections } = useConnections();
   const toast = useToast();
+  const {
+    tabs,
+    activeTabId,
+    openTab,
+    closeTab,
+    setActiveTab,
+    updateTab,
+    getActiveTab,
+  } = useTabs();
 
   // Schema and DB info
   const [schemas, setSchemas] = useState<string[]>([]);
@@ -56,11 +68,7 @@ export function ConnectionDetails() {
   const [isSchemaLoading, setIsSchemaLoading] = useState(true);
   const [isDbInfoLoading, setIsDbInfoLoading] = useState(true);
 
-  // Selection state
-  const [selectedItem, setSelectedItem] = useState<{
-    type: string;
-    name: string;
-  } | null>(null);
+  // Table data (for table tabs)
   const [tableData, setTableData] = useState<any[]>([]);
   const [columnInfo, setColumnInfo] = useState<ColumnInfo[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
@@ -84,11 +92,11 @@ export function ConnectionDetails() {
   }>({ isOpen: false, rows: [] });
 
   const connection = connections.find((c) => c.id === id);
+  const activeTab = getActiveTab();
 
   // Selection action handlers
   const handleCopyRows = useCallback(
     (rows: Record<string, any>[]) => {
-      // Format rows as tab-separated values (TSV) for spreadsheet compatibility
       if (rows.length === 0) return;
 
       const headers = Object.keys(rows[0]);
@@ -121,8 +129,6 @@ export function ConnectionDetails() {
   }, []);
 
   const handleDeleteRowsConfirm = useCallback(async () => {
-    // TODO: Implement actual row deletion via backend
-    // For now, just show a placeholder message
     toast.info(
       `Delete ${deleteConfirm.rows.length} row${
         deleteConfirm.rows.length !== 1 ? "s" : ""
@@ -149,19 +155,15 @@ export function ConnectionDetails() {
     try {
       await invoke("establish_connection", { id });
 
-      // Fetch available schemas first
       const schemasData = await invoke<string[]>("get_schemas", { id });
       setSchemas(schemasData);
 
-      // Determine initial schema (from connection config or default to public)
       const initialSchema = connection?.default_schema || "public";
-      // If the configured schema doesn't exist, fall back to first available or public
       const validSchema = schemasData.includes(initialSchema)
         ? initialSchema
         : schemasData[0] || "public";
       setActiveSchema(validSchema);
 
-      // Fetch schema objects and database info in parallel
       const [schemaData, dbInfoData] = await Promise.all([
         invoke<SchemaObjects>("get_schema_objects", {
           id,
@@ -206,10 +208,9 @@ export function ConnectionDetails() {
   const handleSchemaChange = async (newSchema: string) => {
     if (!id || newSchema === activeSchema) return;
     setActiveSchema(newSchema);
-    setSelectedItem(null); // Clear selection when switching schemas
     setTableData([]);
     setColumnInfo([]);
-    setPagination((prev) => ({ ...prev, page: 0, totalCount: 0 })); // Reset pagination
+    setPagination((prev) => ({ ...prev, page: 0, totalCount: 0 }));
     setIsSchemaLoading(true);
     setIsDbInfoLoading(true);
 
@@ -235,8 +236,13 @@ export function ConnectionDetails() {
 
   // Fetch table data with pagination
   const fetchTableData = useCallback(
-    async (page: number, pageSize: number) => {
-      if (!id || !selectedItem || selectedItem.type !== "tables") {
+    async (
+      tableName: string,
+      schema: string,
+      page: number,
+      pageSize: number
+    ) => {
+      if (!id) {
         setTableData([]);
         return;
       }
@@ -245,8 +251,8 @@ export function ConnectionDetails() {
       try {
         const result = await invoke<PaginatedTableData>("get_table_data", {
           id,
-          table: selectedItem.name,
-          schema: activeSchema,
+          table: tableName,
+          schema: schema,
           limit: pageSize,
           offset: page * pageSize,
         });
@@ -265,31 +271,57 @@ export function ConnectionDetails() {
         setIsDataLoading(false);
       }
     },
-    [id, selectedItem, activeSchema, toast]
+    [id, toast]
   );
 
-  // Fetch data when a table is selected
+  // Fetch data when a table tab becomes active
   useEffect(() => {
-    if (!id || !selectedItem || selectedItem.type !== "tables") {
+    if (!id || !activeTab || activeTab.type !== "table") {
       setTableData([]);
       setPagination((prev) => ({ ...prev, totalCount: 0, page: 0 }));
       return;
     }
-    // Reset to first page when table changes
-    fetchTableData(0, pagination.pageSize);
-  }, [id, selectedItem, activeSchema]);
+    const tableTab = activeTab as TableTab;
+    fetchTableData(tableTab.tableName, tableTab.schema, 0, pagination.pageSize);
+  }, [id, activeTab?.id]);
 
   const handlePageChange = (newPage: number) => {
-    fetchTableData(newPage, pagination.pageSize);
+    if (activeTab?.type === "table") {
+      const tableTab = activeTab as TableTab;
+      fetchTableData(
+        tableTab.tableName,
+        tableTab.schema,
+        newPage,
+        pagination.pageSize
+      );
+    }
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
-    // Reset to first page when page size changes
-    fetchTableData(0, newPageSize);
+    if (activeTab?.type === "table") {
+      const tableTab = activeTab as TableTab;
+      fetchTableData(tableTab.tableName, tableTab.schema, 0, newPageSize);
+    }
   };
 
   const handleSelectItem = (type: string, name: string) => {
-    setSelectedItem({ type, name });
+    if (type === "tables") {
+      openTab({
+        type: "table",
+        title: name,
+        schema: activeSchema,
+        tableName: name,
+      });
+    }
+    // TODO: Handle views, functions, sequences
+  };
+
+  const handleOpenSqlEditor = () => {
+    openTab({
+      type: "sql",
+      title: `Query ${tabs.filter((t) => t.type === "sql").length + 1}`,
+      queryContent: "",
+    });
   };
 
   const handleCloseConnection = async () => {
@@ -298,7 +330,6 @@ export function ConnectionDetails() {
       navigate("/");
     } catch (e: any) {
       console.error(e);
-      // Navigate anyway even if close fails
       navigate("/");
     }
   };
@@ -374,6 +405,22 @@ export function ConnectionDetails() {
     ? `${connection.host}:${connection.port}/${connection.database}`
     : "";
 
+  // Get display info for header
+  const getHeaderInfo = () => {
+    if (!activeTab || activeTab.type === "dashboard") {
+      return null;
+    }
+    if (activeTab.type === "table") {
+      return { name: (activeTab as TableTab).tableName, badge: "TABLE" };
+    }
+    if (activeTab.type === "sql") {
+      return { name: activeTab.title, badge: "SQL" };
+    }
+    return null;
+  };
+
+  const headerInfo = getHeaderInfo();
+
   return (
     <div className={styles.page}>
       {/* Header Bar */}
@@ -394,20 +441,11 @@ export function ConnectionDetails() {
         {/* Divider */}
         <div className={styles.divider} />
 
-        {/* Selected item indicator with back button */}
-        {selectedItem && (
+        {/* Current tab indicator */}
+        {headerInfo && (
           <div className={styles.selectedItemIndicator}>
-            <button
-              className={styles.backBtn}
-              onClick={() => setSelectedItem(null)}
-              title="Back to dashboard"
-            >
-              <X size={14} />
-            </button>
-            <span className={styles.tableName}>{selectedItem.name}</span>
-            <span className={styles.tableBadge}>
-              {selectedItem.type === "tables" ? "TABLE" : "VIEW"}
-            </span>
+            <span className={styles.tableName}>{headerInfo.name}</span>
+            <span className={styles.tableBadge}>{headerInfo.badge}</span>
           </div>
         )}
 
@@ -417,7 +455,7 @@ export function ConnectionDetails() {
         {/* Actions */}
         <div className={styles.actions}>
           <button
-            onClick={() => navigate(`/connection/${id}/sql`)}
+            onClick={handleOpenSqlEditor}
             className={styles.sqlEditorBtn}
             title="Open SQL Editor"
           >
@@ -450,13 +488,25 @@ export function ConnectionDetails() {
         </div>
       </header>
 
+      {/* Tab Bar */}
+      <TabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onTabClick={setActiveTab}
+        onTabClose={closeTab}
+      />
+
       {/* Body with sidebar */}
       <div className={styles.body}>
         {/* Schema Sidebar */}
         <SchemaSidebar
           schema={schemaObjects}
           isLoading={isSchemaLoading}
-          selectedItem={selectedItem}
+          selectedItem={
+            activeTab?.type === "table"
+              ? { type: "tables", name: (activeTab as TableTab).tableName }
+              : null
+          }
           onSelectItem={handleSelectItem}
           onRefresh={refreshSchema}
           schemas={schemas}
@@ -466,17 +516,19 @@ export function ConnectionDetails() {
 
         {/* Main content panel */}
         <div className={styles.mainPanel}>
-          {!selectedItem ? (
-            // Dashboard when nothing selected
+          {/* Dashboard tab */}
+          {activeTab?.type === "dashboard" && (
             <DatabaseDashboard
               info={dbInfo}
               isLoading={isDbInfoLoading}
               connectionName={connection?.name || "Database"}
               connectionHost={connectionHost}
-              onOpenSqlEditor={() => navigate(`/connection/${id}/sql`)}
+              onOpenSqlEditor={handleOpenSqlEditor}
             />
-          ) : selectedItem.type === "tables" ? (
-            // Table data view
+          )}
+
+          {/* Table tab */}
+          {activeTab?.type === "table" && (
             <div className={styles.tableView}>
               <div className={styles.tableContent}>
                 <DataTable
@@ -491,26 +543,19 @@ export function ConnectionDetails() {
                 />
               </div>
             </div>
-          ) : (
-            // Placeholder for views, functions, sequences
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIconWrapper}>
-                <Database size={36} className={styles.emptyIcon} />
-              </div>
-              <h2 className={styles.emptyTitle}>
-                {selectedItem.type === "views" && "View Details"}
-                {selectedItem.type === "functions" && "Function Details"}
-                {selectedItem.type === "sequences" && "Sequence Details"}
-              </h2>
-              <p className={styles.emptySubtitle}>
-                {selectedItem.type === "views" &&
-                  "View inspection coming soon. Select a table to view data."}
-                {selectedItem.type === "functions" &&
-                  "Function inspection coming soon. Select a table to view data."}
-                {selectedItem.type === "sequences" &&
-                  "Sequence inspection coming soon. Select a table to view data."}
-              </p>
-            </div>
+          )}
+
+          {/* SQL Editor tab */}
+          {activeTab?.type === "sql" && (
+            <SqlEditorTab
+              connectionId={id!}
+              initialQuery={(activeTab as SqlTab).queryContent}
+              onQueryChange={(query) =>
+                updateTab(activeTab.id, {
+                  queryContent: query,
+                } as Partial<SqlTab>)
+              }
+            />
           )}
         </div>
       </div>
@@ -531,5 +576,14 @@ export function ConnectionDetails() {
         onCancel={handleDeleteRowsCancel}
       />
     </div>
+  );
+}
+
+// Main component with TabProvider wrapper
+export function ConnectionDetails() {
+  return (
+    <TabProvider>
+      <ConnectionWorkspace />
+    </TabProvider>
   );
 }
