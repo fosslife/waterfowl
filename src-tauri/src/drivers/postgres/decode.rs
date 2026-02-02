@@ -47,6 +47,8 @@ pub fn decode_rows(rows: &[PgRow]) -> (Vec<Map<String, Value>>, Vec<ColumnInfo>)
 /// Decodes a PostgreSQL value to a serde_json::Value based on its type.
 /// Handles all common PostgreSQL data types for display in the UI.
 fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
+
+    
     match type_name {
         // ===== Boolean =====
         "BOOL" => {
@@ -258,73 +260,93 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
         },
 
         // ===== Array types =====
-        "_BOOL" => {
+        // Note: sqlx returns type names like "TEXT[]", "VARCHAR[]" (with [] suffix)
+        "_BOOL" | "BOOL[]" => {
             let arr: Vec<bool> = row.get(ordinal);
             json!(arr)
         }
-        "_INT2" => {
+        "_INT2" | "INT2[]" | "SMALLINT[]" => {
             let arr: Vec<i16> = row.get(ordinal);
             json!(arr)
         }
-        "_INT4" => {
+        "_INT4" | "INT4[]" | "INTEGER[]" | "INT[]" => {
             let arr: Vec<i32> = row.get(ordinal);
             json!(arr)
         }
-        "_INT8" => {
+        "_INT8" | "INT8[]" | "BIGINT[]" => {
             let arr: Vec<i64> = row.get(ordinal);
             json!(arr)
         }
-        "_FLOAT4" => {
+        "_FLOAT4" | "FLOAT4[]" | "REAL[]" => {
             let arr: Vec<f32> = row.get(ordinal);
             json!(arr)
         }
-        "_FLOAT8" => {
+        "_FLOAT8" | "FLOAT8[]" | "DOUBLE PRECISION[]" => {
             let arr: Vec<f64> = row.get(ordinal);
             json!(arr)
         }
-        "_TEXT" | "_VARCHAR" | "_BPCHAR" | "_NAME" => {
+        "_TEXT" | "_VARCHAR" | "_BPCHAR" | "_NAME" | "TEXT[]" | "VARCHAR[]" | "BPCHAR[]" | "NAME[]" | "CHAR[]" => {
             let arr: Vec<String> = row.get(ordinal);
             json!(arr)
         }
-        "_UUID" => {
+        "_UUID" | "UUID[]" => {
             let arr: Vec<uuid::Uuid> = row.get(ordinal);
             let strings: Vec<String> = arr.iter().map(|u| u.to_string()).collect();
             json!(strings)
         }
-        "_JSONB" | "_JSON" => {
+        "_JSONB" | "_JSON" | "JSONB[]" | "JSON[]" => {
             let arr: Vec<Value> = row.get(ordinal);
             json!(arr)
         }
-        "_INET" => match row.try_get::<Vec<ipnetwork::IpNetwork>, _>(ordinal) {
+        "_INET" | "INET[]" => match row.try_get::<Vec<ipnetwork::IpNetwork>, _>(ordinal) {
             Ok(arr) => {
                 let strings: Vec<String> = arr.iter().map(|ip| ip.to_string()).collect();
                 json!(strings)
             }
             Err(_) => Value::String("[INET[]]".to_string()),
         },
-        "_DATE" => {
+        "_DATE" | "DATE[]" => {
             let arr: Vec<chrono::NaiveDate> = row.get(ordinal);
             let strings: Vec<String> = arr.iter().map(|d| d.to_string()).collect();
             json!(strings)
         }
-        "_TIMESTAMP" => {
+        "_TIMESTAMP" | "TIMESTAMP[]" => {
             let arr: Vec<chrono::NaiveDateTime> = row.get(ordinal);
             let strings: Vec<String> = arr.iter().map(|ts| ts.to_string()).collect();
             json!(strings)
         }
-        "_TIMESTAMPTZ" => {
+        "_TIMESTAMPTZ" | "TIMESTAMPTZ[]" => {
             let arr: Vec<chrono::DateTime<chrono::Utc>> = row.get(ordinal);
             let strings: Vec<String> = arr.iter().map(|ts| ts.to_rfc3339()).collect();
             json!(strings)
         }
 
-        // ===== Custom ENUMs and unknown types =====
-        // ENUMs in PostgreSQL are returned as strings
+        // ===== Custom ENUMs, arrays, and unknown types =====
         _ => {
-            // First try to decode as String (works for ENUMs and many other types)
+            
+            // Check if this is an array type (ends with "[]" or starts with "_")
+            let is_array = type_name.ends_with("[]") || type_name.starts_with('_');
+            
+            if is_array {
+                // Try to decode as Vec<String> - works for enum arrays, custom type arrays, etc.
+                match row.try_get::<Vec<String>, _>(ordinal) {
+                    Ok(arr) => {
+                        return json!(arr);
+                    }
+                    Err(e) => {
+                        // Try raw text decode for array
+                        let result = decode_pg_raw_text(row, ordinal, type_name);
+                        return result;
+                    }
+                }
+            }
+
+            // For non-array types, try to decode as String (works for ENUMs and many other types)
             match row.try_get::<String, _>(ordinal) {
-                Ok(s) => Value::String(s),
-                Err(_) => {
+                Ok(s) => {
+                    Value::String(s)
+                }
+                Err(e) => {
                     // Try raw text decode as last resort
                     decode_pg_raw_text(row, ordinal, type_name)
                 }

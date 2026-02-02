@@ -198,6 +198,11 @@
   max-width: 200px;
 }
 
+.cellArray {
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
 /* Table footer */
 .tableFooter {
   flex-shrink: 0;

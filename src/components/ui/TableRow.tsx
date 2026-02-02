@@ -19,6 +19,7 @@ function getCellClass(val: any): string {
   if (val === null || val === undefined) return styles.cellNull;
   if (typeof val === "number") return styles.cellNumber;
   if (typeof val === "boolean") return styles.cellBoolean;
+  if (Array.isArray(val)) return styles.cellArray;
   if (typeof val === "object") return styles.cellJson;
   return "";
 }

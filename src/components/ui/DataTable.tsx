@@ -525,6 +525,10 @@ function isNumericColumn(type: string | undefined): boolean {
 function formatValue(val: any): string {
   if (val === null || val === undefined) return "NULL";
   if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
+  if (Array.isArray(val)) {
+    // Display arrays as comma-separated values
+    return val.map((v) => (v === null ? "NULL" : String(v))).join(", ");
+  }
   if (typeof val === "object") return JSON.stringify(val);
   return String(val);
 }
