@@ -30,3 +30,6 @@ hex = "0.4"
 ipnetwork = "0.20"
 mac_address = "1.1"
 
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-window-state = "2"
+
