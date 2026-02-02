@@ -333,7 +333,8 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
     }
 }
 
-/// Attempts to decode a PostgreSQL value by getting its raw bytes in text format.
+/// Attempts to decode a PostgreSQL value by getting its raw bytes.
+/// For binary format, tries to interpret as UTF-8 first (works for enums and many text-like types).
 fn decode_pg_raw_text(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
     match row.try_get_raw(ordinal) {
         Ok(value_ref) => {
@@ -350,14 +351,25 @@ fn decode_pg_raw_text(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
                     }
                 }
                 PgValueFormat::Binary => {
-                    // Binary format - show hex representation for unknown types
+                    // Binary format - try to interpret as UTF-8 first.
+                    // This works for PostgreSQL ENUMs (which are stored as their text labels)
+                    // and other text-like types that sqlx doesn't have native support for.
                     match value_ref.as_bytes() {
-                        Ok(bytes) if bytes.len() <= 100 => {
-                            Value::String(format!("[{}: \\x{}]", type_name, hex::encode(bytes)))
-                        }
-                        Ok(bytes) => {
-                            Value::String(format!("[{}: {} bytes]", type_name, bytes.len()))
-                        }
+                        Ok(bytes) => match std::str::from_utf8(bytes) {
+                            Ok(s) => Value::String(s.to_string()),
+                            Err(_) => {
+                                // Not valid UTF-8, show hex representation
+                                if bytes.len() <= 100 {
+                                    Value::String(format!(
+                                        "[{}: \\x{}]",
+                                        type_name,
+                                        hex::encode(bytes)
+                                    ))
+                                } else {
+                                    Value::String(format!("[{}: {} bytes]", type_name, bytes.len()))
+                                }
+                            }
+                        },
                         Err(_) => Value::String(format!("[{}]", type_name)),
                     }
                 }

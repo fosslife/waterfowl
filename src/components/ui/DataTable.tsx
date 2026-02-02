@@ -253,11 +253,14 @@ export function DataTable({
                   const columnMeta = header.column.columnDef.meta as
                     | { type: string }
                     | undefined;
+                  const isNumericType = isNumericColumn(columnMeta?.type);
 
                   return (
                     <th
                       key={header.id}
-                      className={styles.sortableHeader}
+                      className={`${styles.sortableHeader} ${
+                        isNumericType ? styles.headerRight : ""
+                      }`}
                       style={{ width: header.getSize() }}
                     >
                       <div
@@ -490,6 +493,33 @@ function inferType(data: Record<string, any>[], col: string): string {
   }
   if (typeof sample === "object") return "json";
   return "unknown";
+}
+
+/** Check if column type is numeric (for right-alignment) */
+function isNumericColumn(type: string | undefined): boolean {
+  if (!type) return false;
+  const numericTypes = [
+    "int",
+    "float",
+    "int2",
+    "int4",
+    "int8",
+    "smallint",
+    "integer",
+    "bigint",
+    "serial",
+    "smallserial",
+    "bigserial",
+    "float4",
+    "float8",
+    "real",
+    "double precision",
+    "numeric",
+    "decimal",
+    "money",
+    "oid",
+  ];
+  return numericTypes.includes(type.toLowerCase());
 }
 
 function formatValue(val: any): string {

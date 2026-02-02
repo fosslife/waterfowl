@@ -74,6 +74,8 @@ pub struct SchemaObjects {
 #[derive(Serialize, Clone)]
 pub struct ColumnInfo {
     pub name: String,
+    /// PostgreSQL type name (e.g., "TEXT", "INT4", "user_role" for enums)
+    #[serde(rename = "pg_type")]
     pub data_type: String,
 }
 
