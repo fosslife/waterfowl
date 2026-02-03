@@ -27,16 +27,12 @@ use state::AppState;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .manage(AppState::new())
-        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             // Connection commands
-            commands::save_connection,
-            commands::get_connections,
-            commands::get_connection,
-            commands::delete_connection,
             commands::test_connection,
             commands::establish_connection,
             commands::close_connection,

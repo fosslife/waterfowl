@@ -5,17 +5,42 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {
+  getConnections as fetchConnections,
+  StoredConnection,
+} from "../services/connections";
 
+/**
+ * Connection interface used throughout the app.
+ * Maps from StoredConnection to a frontend-friendly format.
+ */
 export interface Connection {
   id: string;
   name: string;
   host: string;
   port: string;
   user: string;
+  password?: string | null;
   database: string;
   driver: string;
   default_schema: string;
+}
+
+/**
+ * Convert stored connection to frontend Connection interface.
+ */
+function toConnection(stored: StoredConnection): Connection {
+  return {
+    id: stored.id,
+    name: stored.name,
+    host: stored.host,
+    port: stored.port,
+    user: stored.username,
+    password: stored.password,
+    database: stored.database_name,
+    driver: stored.driver,
+    default_schema: stored.default_schema,
+  };
 }
 
 interface ConnectionsContextType {
@@ -39,8 +64,8 @@ export function ConnectionsProvider({
   const refreshConnections = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await invoke<Connection[]>("get_connections");
-      setConnections(result);
+      const storedConnections = await fetchConnections();
+      setConnections(storedConnections.map(toConnection));
     } catch (e) {
       console.error("Failed to fetch connections:", e);
     } finally {

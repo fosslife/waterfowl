@@ -4,7 +4,10 @@
 
 use crate::drivers::DatabaseDriver;
 use crate::state::AppState;
-use crate::types::{DatabaseInfo, FunctionInfo, PaginatedTableData, QueryResult, SchemaObjects, SequenceInfo, TableStructure};
+use crate::types::{
+    DatabaseInfo, FunctionInfo, PaginatedTableData, QueryResult, SchemaObjects, SequenceInfo,
+    TableStructure,
+};
 
 /// Helper to get a cloned connection from state.
 /// We clone because we can't hold the mutex lock across await points.

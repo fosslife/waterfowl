@@ -12,20 +12,27 @@ use crate::types::ColumnInfo;
 /// Decode a vector of PgRows into JSON-compatible maps and extract column info.
 /// If `column_order` is provided, columns will be returned in that order.
 /// Otherwise, columns are extracted from the result set (may not preserve schema order).
-pub fn decode_rows(rows: &[PgRow], column_order: Option<Vec<ColumnInfo>>) -> (Vec<Map<String, Value>>, Vec<ColumnInfo>) {
+pub fn decode_rows(
+    rows: &[PgRow],
+    column_order: Option<Vec<ColumnInfo>>,
+) -> (Vec<Map<String, Value>>, Vec<ColumnInfo>) {
     let mut results = Vec::new();
-    
+
     // Use provided column order, or extract from result set
     let columns_info = if let Some(ordered_cols) = column_order {
         ordered_cols
     } else {
         // Extract column metadata from the first row (fallback, may not preserve order)
         if let Some(first_row) = rows.first() {
-            first_row.columns().iter().map(|col| ColumnInfo {
-                name: col.name().to_string(),
-                data_type: col.type_info().name().to_string(),
-                ordinal_position: None,
-            }).collect()
+            first_row
+                .columns()
+                .iter()
+                .map(|col| ColumnInfo {
+                    name: col.name().to_string(),
+                    data_type: col.type_info().name().to_string(),
+                    ordinal_position: None,
+                })
+                .collect()
         } else {
             Vec::new()
         }
@@ -54,8 +61,6 @@ pub fn decode_rows(rows: &[PgRow], column_order: Option<Vec<ColumnInfo>>) -> (Ve
 /// Decodes a PostgreSQL value to a serde_json::Value based on its type.
 /// Handles all common PostgreSQL data types for display in the UI.
 fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
-
-    
     match type_name {
         // ===== Boolean =====
         "BOOL" => {
@@ -152,7 +157,7 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
             // Time with timezone - decode as PgTimeTz
             match row.try_get::<sqlx::postgres::types::PgTimeTz, _>(ordinal) {
                 Ok(t) => {
-                    Value::String(format!("{}{:+}", t.time, t.offset.local_minus_utc() / 3600))
+                    Value::String(format!("{}{:+}", t.time, t.offset.whole_seconds() / 3600))
                 }
                 Err(_) => Value::String("[TIMETZ]".to_string()),
             }
@@ -292,7 +297,8 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
             let arr: Vec<f64> = row.get(ordinal);
             json!(arr)
         }
-        "_TEXT" | "_VARCHAR" | "_BPCHAR" | "_NAME" | "TEXT[]" | "VARCHAR[]" | "BPCHAR[]" | "NAME[]" | "CHAR[]" => {
+        "_TEXT" | "_VARCHAR" | "_BPCHAR" | "_NAME" | "TEXT[]" | "VARCHAR[]" | "BPCHAR[]"
+        | "NAME[]" | "CHAR[]" => {
             let arr: Vec<String> = row.get(ordinal);
             json!(arr)
         }
@@ -330,10 +336,9 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
 
         // ===== Custom ENUMs, arrays, and unknown types =====
         _ => {
-            
             // Check if this is an array type (ends with "[]" or starts with "_")
             let is_array = type_name.ends_with("[]") || type_name.starts_with('_');
-            
+
             if is_array {
                 // Try to decode as Vec<String> - works for enum arrays, custom type arrays, etc.
                 match row.try_get::<Vec<String>, _>(ordinal) {
@@ -350,9 +355,7 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
 
             // For non-array types, try to decode as String (works for ENUMs and many other types)
             match row.try_get::<String, _>(ordinal) {
-                Ok(s) => {
-                    Value::String(s)
-                }
+                Ok(s) => Value::String(s),
                 Err(e) => {
                     // Try raw text decode as last resort
                     decode_pg_raw_text(row, ordinal, type_name)
@@ -444,7 +447,10 @@ fn format_interval(interval: &sqlx::postgres::types::PgInterval) -> Value {
         let micros = interval.microseconds % 1_000_000;
         if hours != 0 || mins != 0 || secs != 0 || micros != 0 {
             if micros != 0 {
-                parts.push(format!("{:02}:{:02}:{:02}.{:06}", hours, mins, secs, micros));
+                parts.push(format!(
+                    "{:02}:{:02}:{:02}.{:06}",
+                    hours, mins, secs, micros
+                ));
             } else {
                 parts.push(format!("{:02}:{:02}:{:02}", hours, mins, secs));
             }

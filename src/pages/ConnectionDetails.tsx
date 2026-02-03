@@ -26,6 +26,11 @@ import {
 import { SqlEditorTab } from "../components/SqlEditorTab";
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
+import {
+  recordConnectionUsage,
+  deleteConnection,
+  getConnection,
+} from "../services/connections";
 import { TabProvider, useTabs, TableTab, ViewTab, FunctionTab, SequenceTab, SqlTab } from "../context/TabContext";
 import styles from "./ConnectionDetails.module.css";
 
@@ -172,12 +177,35 @@ function ConnectionWorkspace() {
     setError(null);
 
     try {
-      await invoke("establish_connection", { id });
+      // Fetch full connection config from SQLite (includes password)
+      const connConfig = await getConnection(id);
+      if (!connConfig) {
+        throw new Error("Connection not found");
+      }
+
+      // Convert to Rust-expected format and establish connection
+      await invoke("establish_connection", {
+        id,
+        connection: {
+          id: connConfig.id,
+          name: connConfig.name,
+          host: connConfig.host,
+          port: connConfig.port,
+          user: connConfig.username,
+          password: connConfig.password,
+          database: connConfig.database_name,
+          driver: connConfig.driver,
+          default_schema: connConfig.default_schema,
+        },
+      });
+
+      // Track this connection as recently used
+      recordConnectionUsage(id).catch(console.error);
 
       const schemasData = await invoke<string[]>("get_schemas", { id });
       setSchemas(schemasData);
 
-      const initialSchema = connection?.default_schema || "public";
+      const initialSchema = connConfig.default_schema || "public";
       const validSchema = schemasData.includes(initialSchema)
         ? initialSchema
         : schemasData[0] || "public";
@@ -275,7 +303,6 @@ function ConnectionWorkspace() {
           limit: pageSize,
           offset: page * pageSize,
         });
-        console.log("Got table data", result.columns)
         setTableData(result.rows);
         setColumnInfo(result.columns || []);
         setPagination((prev) => ({
@@ -486,7 +513,10 @@ function ConnectionWorkspace() {
     if (!confirm("Are you sure you want to delete this connection?")) return;
     setIsDeleting(true);
     try {
-      await invoke("delete_connection", { id });
+      // Close the active connection first
+      await invoke("close_connection", { id });
+      // Delete from SQLite storage
+      await deleteConnection(id!);
       await refreshConnections();
       toast.success("Connection deleted");
       navigate("/");

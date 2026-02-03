@@ -7,6 +7,10 @@ import { FormSkeleton } from "../components/ui/Skeleton";
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  saveConnection,
+  getConnection,
+} from "../services/connections";
 import styles from "./NewConnection.module.css";
 
 export function NewConnection() {
@@ -31,18 +35,20 @@ export function NewConnection() {
   useEffect(() => {
     if (id) {
       setIsFetching(true);
-      invoke("get_connection", { id })
-        .then((conn: any) => {
-          setFormData({
-            name: conn.name,
-            host: conn.host,
-            port: conn.port,
-            user: conn.user,
-            password: conn.password || "",
-            database: conn.database,
-            driver: conn.driver,
-            default_schema: conn.default_schema || "public",
-          });
+      getConnection(id)
+        .then((conn) => {
+          if (conn) {
+            setFormData({
+              name: conn.name,
+              host: conn.host,
+              port: conn.port,
+              user: conn.username,
+              password: conn.password || "",
+              database: conn.database_name,
+              driver: conn.driver,
+              default_schema: conn.default_schema || "public",
+            });
+          }
         })
         .catch(console.error)
         .finally(() => setIsFetching(false));
@@ -56,7 +62,19 @@ export function NewConnection() {
   const handleTestConnection = async () => {
     setIsTesting(true);
     try {
-      await invoke("test_connection", { connection: formData });
+      // Convert form data to Rust ConnectionConfig format
+      await invoke("test_connection", {
+        connection: {
+          name: formData.name,
+          host: formData.host,
+          port: formData.port,
+          user: formData.user,
+          password: formData.password || null,
+          database: formData.database,
+          driver: formData.driver,
+          default_schema: formData.default_schema,
+        },
+      });
       toast.success(
         `Successfully connected to ${formData.host}:${formData.port}/${formData.database}`
       );
@@ -71,8 +89,16 @@ export function NewConnection() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await invoke("save_connection", {
-        connection: { ...formData, id: id || undefined },
+      await saveConnection({
+        id: id || undefined,
+        name: formData.name,
+        host: formData.host,
+        port: formData.port,
+        username: formData.user,
+        password: formData.password || null,
+        database_name: formData.database,
+        driver: formData.driver,
+        default_schema: formData.default_schema,
       });
       await refreshConnections();
       toast.success(

@@ -8,12 +8,12 @@ use sqlx::Row;
 
 use crate::drivers::DatabaseDriver;
 use crate::types::{
-    ColumnInfo, ConnectionConfig, DatabaseInfo, FunctionInfo, IndexInfo, PaginatedTableData, 
+    ColumnInfo, ConnectionConfig, DatabaseInfo, FunctionInfo, IndexInfo, PaginatedTableData,
     QueryResult, SchemaObject, SchemaObjects, SequenceInfo, TableColumn, TableStructure,
 };
 
 /// PostgreSQL driver wrapping a connection pool.
-/// 
+///
 /// This is Clone because PgPool is Arc-based internally,
 /// so cloning is cheap and shares the same connection pool.
 #[derive(Clone)]
@@ -110,7 +110,7 @@ impl DatabaseDriver for PostgresDriver {
             FROM information_schema.columns
             WHERE table_schema = $1 AND table_name = $2
             ORDER BY ordinal_position
-            "#
+            "#,
         )
         .bind(schema)
         .bind(table)
@@ -133,11 +133,13 @@ impl DatabaseDriver for PostgresDriver {
             .collect();
 
         // Get total count
-        let count_row =
-            sqlx::query(&format!("SELECT COUNT(*) FROM \"{}\".\"{}\"", schema, table))
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| e.to_string())?;
+        let count_row = sqlx::query(&format!(
+            "SELECT COUNT(*) FROM \"{}\".\"{}\"",
+            schema, table
+        ))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
         let total_count: i64 = count_row.get(0);
 
         // Fetch paginated data
@@ -198,20 +200,22 @@ impl DatabaseDriver for PostgresDriver {
                 .map_err(|e| e.to_string())?;
         let total_views: i64 = views_row.get(0);
 
-        let functions_row =
-            sqlx::query("SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = $1")
-                .bind(schema)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| e.to_string())?;
+        let functions_row = sqlx::query(
+            "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = $1",
+        )
+        .bind(schema)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
         let total_functions: i64 = functions_row.get(0);
 
-        let sequences_row =
-            sqlx::query("SELECT COUNT(*) FROM information_schema.sequences WHERE sequence_schema = $1")
-                .bind(schema)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| e.to_string())?;
+        let sequences_row = sqlx::query(
+            "SELECT COUNT(*) FROM information_schema.sequences WHERE sequence_schema = $1",
+        )
+        .bind(schema)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
         let total_sequences: i64 = sequences_row.get(0);
 
         Ok(DatabaseInfo {
@@ -343,7 +347,7 @@ impl DatabaseDriver for PostgresDriver {
             FROM information_schema.columns
             WHERE table_schema = $1 AND table_name = $2
             ORDER BY ordinal_position
-            "#
+            "#,
         )
         .bind(schema)
         .bind(view)
@@ -394,7 +398,11 @@ impl DatabaseDriver for PostgresDriver {
         })
     }
 
-    async fn get_function_info(&self, function_name: &str, schema: &str) -> Result<FunctionInfo, String> {
+    async fn get_function_info(
+        &self,
+        function_name: &str,
+        schema: &str,
+    ) -> Result<FunctionInfo, String> {
         let row = sqlx::query(
             r#"
             SELECT 
@@ -439,7 +447,11 @@ impl DatabaseDriver for PostgresDriver {
         })
     }
 
-    async fn get_sequence_info(&self, sequence_name: &str, schema: &str) -> Result<SequenceInfo, String> {
+    async fn get_sequence_info(
+        &self,
+        sequence_name: &str,
+        schema: &str,
+    ) -> Result<SequenceInfo, String> {
         // Get sequence metadata from information_schema
         let meta_row = sqlx::query(
             r#"
@@ -490,7 +502,11 @@ impl DatabaseDriver for PostgresDriver {
         })
     }
 
-    async fn get_table_structure(&self, table: &str, schema: &str) -> Result<TableStructure, String> {
+    async fn get_table_structure(
+        &self,
+        table: &str,
+        schema: &str,
+    ) -> Result<TableStructure, String> {
         // Get columns with detailed information
         let column_rows = sqlx::query(
             r#"
@@ -625,7 +641,9 @@ impl DatabaseDriver for PostgresDriver {
             columns,
             indexes,
             row_count: stats_row.try_get::<i64, _>("row_count").unwrap_or(0),
-            size: stats_row.try_get("size").unwrap_or_else(|_| "Unknown".to_string()),
+            size: stats_row
+                .try_get("size")
+                .unwrap_or_else(|_| "Unknown".to_string()),
             description: stats_row.try_get("description").ok(),
         })
     }

@@ -37,6 +37,8 @@
   pointer-events: none;
 }
 
+/* ==================== First-Time Experience Styles ==================== */
+
 .content {
   position: relative;
   z-index: 10;
@@ -132,6 +134,283 @@
   font-size: var(--text-xs);
   color: var(--color-text-tertiary);
 }
+
+/* ==================== Dashboard/Returning User Styles ==================== */
+
+.dashboardContent {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+}
+
+.dashboardHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.headerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    var(--color-accent-primary) 0%,
+    var(--color-accent-secondary, var(--color-accent-primary)) 100%
+  );
+  color: var(--color-base-0);
+  box-shadow: var(--shadow-glow);
+}
+
+.headerIconText {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+}
+
+.dashboardTitle {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.dashboardSubtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 4px 0 0 0;
+}
+
+/* Two-column layout */
+.columnsContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .columnsContainer {
+    grid-template-columns: 1fr;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Connection cards */
+.connectionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connectionCardLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.connectionCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--color-base-50);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.15s ease;
+}
+
+.connectionCard:hover {
+  background: var(--color-base-100);
+  border-color: var(--color-accent-primary);
+  box-shadow: var(--shadow-glow);
+  transform: translateX(4px);
+}
+
+.connectionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--color-base-100);
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.connectionCard:hover .connectionIcon {
+  background: var(--color-accent-primary);
+  color: var(--color-base-0);
+}
+
+.connectionInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.connectionName {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connectionDetails {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.arrowIcon {
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.connectionCard:hover .arrowIcon,
+.newConnectionCard:hover .arrowIcon {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+/* New connection card */
+.newConnectionLink {
+  text-decoration: none;
+  color: inherit;
+  margin-top: 4px;
+}
+
+.newConnectionCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px dashed var(--border-subtle);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  transition: all 0.15s ease;
+}
+
+.newConnectionCard:hover {
+  background: var(--color-base-50);
+  border-color: var(--color-accent-primary);
+  border-style: solid;
+  color: var(--color-accent-primary);
+}
+
+.newConnectionIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--color-base-100);
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.newConnectionCard:hover .newConnectionIcon {
+  background: var(--color-accent-primary);
+  color: var(--color-base-0);
+}
+
+/* Tips cards */
+.tipsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tipCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--color-base-50);
+  border: 1px solid var(--border-subtle);
+  transition: background 0.15s ease;
+}
+
+.tipCard:hover {
+  background: var(--color-base-100);
+}
+
+.tipIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--color-base-100);
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.tipContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tipTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-primary);
+}
+
+.tipDescription {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  line-height: 1.4;
+}
+
+.versionNote {
+  margin-top: 32px;
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
+/* ==================== Animations ==================== */
 
 @keyframes pulseSlow {
   0%,
