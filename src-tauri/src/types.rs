@@ -95,3 +95,68 @@ pub struct QueryResult {
     pub rows_affected: u64,
     pub execution_time_ms: u128,
 }
+
+/// Information about a database function/stored procedure.
+#[derive(Serialize)]
+pub struct FunctionInfo {
+    pub name: String,
+    pub schema: String,
+    pub language: String,
+    pub return_type: String,
+    pub arguments: String,
+    pub definition: String,
+    pub volatility: String,
+    pub is_strict: bool,
+    pub description: Option<String>,
+}
+
+/// Information about a database sequence.
+#[derive(Serialize)]
+pub struct SequenceInfo {
+    pub name: String,
+    pub schema: String,
+    pub data_type: String,
+    pub start_value: i64,
+    pub min_value: i64,
+    pub max_value: i64,
+    pub increment: i64,
+    pub cycle: bool,
+    pub current_value: i64,
+}
+
+/// Column definition for table structure.
+#[derive(Serialize)]
+pub struct TableColumn {
+    pub name: String,
+    pub data_type: String,
+    pub nullable: bool,
+    pub default_value: Option<String>,
+    pub is_primary_key: bool,
+    pub is_unique: bool,
+    pub foreign_key: Option<String>,
+    pub character_maximum_length: Option<i32>,
+    pub numeric_precision: Option<i32>,
+    pub description: Option<String>,
+}
+
+/// Index information.
+#[derive(Serialize)]
+pub struct IndexInfo {
+    pub name: String,
+    pub columns: Vec<String>,
+    pub is_unique: bool,
+    pub is_primary: bool,
+    pub index_type: String,
+}
+
+/// Complete table structure information.
+#[derive(Serialize)]
+pub struct TableStructure {
+    pub name: String,
+    pub schema: String,
+    pub columns: Vec<TableColumn>,
+    pub indexes: Vec<IndexInfo>,
+    pub row_count: i64,
+    pub size: String,
+    pub description: Option<String>,
+}

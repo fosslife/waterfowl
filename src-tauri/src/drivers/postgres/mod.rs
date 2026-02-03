@@ -8,7 +8,8 @@ use sqlx::Row;
 
 use crate::drivers::DatabaseDriver;
 use crate::types::{
-    ConnectionConfig, DatabaseInfo, PaginatedTableData, QueryResult, SchemaObject, SchemaObjects,
+    ConnectionConfig, DatabaseInfo, FunctionInfo, IndexInfo, PaginatedTableData, 
+    QueryResult, SchemaObject, SchemaObjects, SequenceInfo, TableColumn, TableStructure,
 };
 
 /// PostgreSQL driver wrapping a connection pool.
@@ -288,6 +289,286 @@ impl DatabaseDriver for PostgresDriver {
             views,
             functions,
             sequences,
+        })
+    }
+
+    async fn get_view_data(
+        &self,
+        view: &str,
+        schema: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<PaginatedTableData, String> {
+        // Sanitize view and schema names
+        if !view.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err("Invalid view name".to_string());
+        }
+        if !schema.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err("Invalid schema name".to_string());
+        }
+
+        // Get total count - for views we try a count but catch errors
+        let count_result =
+            sqlx::query(&format!("SELECT COUNT(*) FROM \"{}\".\"{}\"", schema, view))
+                .fetch_one(&self.pool)
+                .await;
+
+        let total_count: i64 = match count_result {
+            Ok(row) => row.get(0),
+            Err(_) => -1, // Indicate unknown count
+        };
+
+        // Fetch paginated data (read-only)
+        let rows = sqlx::query(&format!(
+            "SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}",
+            schema, view, limit, offset
+        ))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let (results, columns_info) = decode::decode_rows(&rows);
+
+        Ok(PaginatedTableData {
+            rows: results,
+            total_count,
+            columns: columns_info,
+        })
+    }
+
+    async fn get_function_info(&self, function_name: &str, schema: &str) -> Result<FunctionInfo, String> {
+        let row = sqlx::query(
+            r#"
+            SELECT 
+                p.proname as name,
+                n.nspname as schema,
+                l.lanname as language,
+                pg_get_function_result(p.oid) as return_type,
+                pg_get_function_arguments(p.oid) as arguments,
+                pg_get_functiondef(p.oid) as definition,
+                CASE p.provolatile 
+                    WHEN 'i' THEN 'IMMUTABLE'
+                    WHEN 's' THEN 'STABLE'
+                    WHEN 'v' THEN 'VOLATILE'
+                    ELSE 'UNKNOWN'
+                END as volatility,
+                p.proisstrict as is_strict,
+                d.description
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            JOIN pg_language l ON p.prolang = l.oid
+            LEFT JOIN pg_description d ON d.objoid = p.oid AND d.classoid = 'pg_proc'::regclass
+            WHERE p.proname = $1 AND n.nspname = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(function_name)
+        .bind(schema)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| format!("Function not found: {}", e))?;
+
+        Ok(FunctionInfo {
+            name: row.get("name"),
+            schema: row.get("schema"),
+            language: row.get("language"),
+            return_type: row.get("return_type"),
+            arguments: row.get("arguments"),
+            definition: row.try_get("definition").unwrap_or_default(),
+            volatility: row.get("volatility"),
+            is_strict: row.get("is_strict"),
+            description: row.try_get("description").ok(),
+        })
+    }
+
+    async fn get_sequence_info(&self, sequence_name: &str, schema: &str) -> Result<SequenceInfo, String> {
+        // Get sequence metadata from information_schema
+        let meta_row = sqlx::query(
+            r#"
+            SELECT 
+                sequence_name,
+                sequence_schema,
+                data_type,
+                start_value::bigint,
+                minimum_value::bigint as min_value,
+                maximum_value::bigint as max_value,
+                increment::bigint,
+                cycle_option
+            FROM information_schema.sequences 
+            WHERE sequence_name = $1 AND sequence_schema = $2
+            "#,
+        )
+        .bind(sequence_name)
+        .bind(schema)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| format!("Sequence not found: {}", e))?;
+
+        // Get current value using dynamic SQL
+        let current_row = sqlx::query(&format!(
+            "SELECT last_value FROM \"{}\".\"{}\"",
+            schema, sequence_name
+        ))
+        .fetch_one(&self.pool)
+        .await;
+
+        let current_value: i64 = match current_row {
+            Ok(row) => row.get(0),
+            Err(_) => 0,
+        };
+
+        let cycle_option: String = meta_row.get("cycle_option");
+
+        Ok(SequenceInfo {
+            name: meta_row.get("sequence_name"),
+            schema: meta_row.get("sequence_schema"),
+            data_type: meta_row.get("data_type"),
+            start_value: meta_row.get("start_value"),
+            min_value: meta_row.get("min_value"),
+            max_value: meta_row.get("max_value"),
+            increment: meta_row.get("increment"),
+            cycle: cycle_option == "YES",
+            current_value,
+        })
+    }
+
+    async fn get_table_structure(&self, table: &str, schema: &str) -> Result<TableStructure, String> {
+        // Get columns with detailed information
+        let column_rows = sqlx::query(
+            r#"
+            SELECT 
+                c.column_name,
+                c.data_type,
+                c.is_nullable = 'YES' as nullable,
+                c.column_default,
+                c.character_maximum_length::int,
+                c.numeric_precision::int,
+                col_description(
+                    (quote_ident($2) || '.' || quote_ident($1))::regclass::oid,
+                    c.ordinal_position
+                ) as description,
+                COALESCE(pk.is_pk, false) as is_primary_key,
+                COALESCE(uq.is_unique, false) as is_unique,
+                fk.foreign_table
+            FROM information_schema.columns c
+            LEFT JOIN (
+                SELECT kcu.column_name, true as is_pk
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu 
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.table_schema = $2 AND tc.table_name = $1 AND tc.constraint_type = 'PRIMARY KEY'
+            ) pk ON c.column_name = pk.column_name
+            LEFT JOIN (
+                SELECT kcu.column_name, true as is_unique
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu 
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.table_schema = $2 AND tc.table_name = $1 AND tc.constraint_type = 'UNIQUE'
+            ) uq ON c.column_name = uq.column_name
+            LEFT JOIN (
+                SELECT 
+                    kcu.column_name,
+                    ccu.table_schema || '.' || ccu.table_name || '(' || ccu.column_name || ')' as foreign_table
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu 
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.constraint_column_usage ccu 
+                    ON tc.constraint_name = ccu.constraint_name
+                WHERE tc.table_schema = $2 AND tc.table_name = $1 AND tc.constraint_type = 'FOREIGN KEY'
+            ) fk ON c.column_name = fk.column_name
+            WHERE c.table_schema = $2 AND c.table_name = $1
+            ORDER BY c.ordinal_position
+            "#,
+        )
+        .bind(table)
+        .bind(schema)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let columns: Vec<TableColumn> = column_rows
+            .iter()
+            .map(|r| TableColumn {
+                name: r.get("column_name"),
+                data_type: r.get("data_type"),
+                nullable: r.get("nullable"),
+                default_value: r.try_get("column_default").ok(),
+                is_primary_key: r.get("is_primary_key"),
+                is_unique: r.get("is_unique"),
+                foreign_key: r.try_get("foreign_table").ok(),
+                character_maximum_length: r.try_get("character_maximum_length").ok(),
+                numeric_precision: r.try_get("numeric_precision").ok(),
+                description: r.try_get("description").ok(),
+            })
+            .collect();
+
+        // Get indexes
+        let index_rows = sqlx::query(
+            r#"
+            SELECT 
+                i.relname as index_name,
+                array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) as columns,
+                ix.indisunique as is_unique,
+                ix.indisprimary as is_primary,
+                am.amname as index_type
+            FROM pg_index ix
+            JOIN pg_class i ON i.oid = ix.indexrelid
+            JOIN pg_class t ON t.oid = ix.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_am am ON am.oid = i.relam
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+            WHERE t.relname = $1 AND n.nspname = $2
+            GROUP BY i.relname, ix.indisunique, ix.indisprimary, am.amname
+            "#,
+        )
+        .bind(table)
+        .bind(schema)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let indexes: Vec<IndexInfo> = index_rows
+            .iter()
+            .map(|r| {
+                let cols: Vec<String> = r.try_get("columns").unwrap_or_default();
+                IndexInfo {
+                    name: r.get("index_name"),
+                    columns: cols,
+                    is_unique: r.get("is_unique"),
+                    is_primary: r.get("is_primary"),
+                    index_type: r.get("index_type"),
+                }
+            })
+            .collect();
+
+        // Get table stats
+        let stats_row = sqlx::query(
+            r#"
+            SELECT 
+                pg_size_pretty(pg_total_relation_size((quote_ident($2) || '.' || quote_ident($1))::regclass)) as size,
+                (SELECT reltuples::bigint FROM pg_class c 
+                 JOIN pg_namespace n ON n.oid = c.relnamespace 
+                 WHERE c.relname = $1 AND n.nspname = $2) as row_count,
+                obj_description((quote_ident($2) || '.' || quote_ident($1))::regclass, 'pg_class') as description
+            "#,
+        )
+        .bind(table)
+        .bind(schema)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        Ok(TableStructure {
+            name: table.to_string(),
+            schema: schema.to_string(),
+            columns,
+            indexes,
+            row_count: stats_row.try_get::<i64, _>("row_count").unwrap_or(0),
+            size: stats_row.try_get("size").unwrap_or_else(|_| "Unknown".to_string()),
+            description: stats_row.try_get("description").ok(),
         })
     }
 

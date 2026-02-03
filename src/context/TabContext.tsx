@@ -7,7 +7,7 @@ import {
 } from "react";
 
 // Tab types
-export type TabType = "dashboard" | "table" | "sql";
+export type TabType = "dashboard" | "table" | "view" | "function" | "sequence" | "structure" | "sql";
 
 export interface BaseTab {
   id: string;
@@ -25,6 +25,30 @@ export interface TableTab extends BaseTab {
   tableName: string;
 }
 
+export interface ViewTab extends BaseTab {
+  type: "view";
+  schema: string;
+  viewName: string;
+}
+
+export interface FunctionTab extends BaseTab {
+  type: "function";
+  schema: string;
+  functionName: string;
+}
+
+export interface SequenceTab extends BaseTab {
+  type: "sequence";
+  schema: string;
+  sequenceName: string;
+}
+
+export interface StructureTab extends BaseTab {
+  type: "structure";
+  schema: string;
+  tableName: string;
+}
+
 export interface SqlTab extends BaseTab {
   type: "sql";
   queryContent: string;
@@ -32,13 +56,17 @@ export interface SqlTab extends BaseTab {
   queryId?: string;
 }
 
-export type Tab = DashboardTab | TableTab | SqlTab;
+export type Tab = DashboardTab | TableTab | ViewTab | FunctionTab | SequenceTab | StructureTab | SqlTab;
 
 // Type for creating new tabs (without id)
 export type NewDashboardTab = Omit<DashboardTab, "id">;
 export type NewTableTab = Omit<TableTab, "id">;
+export type NewViewTab = Omit<ViewTab, "id">;
+export type NewFunctionTab = Omit<FunctionTab, "id">;
+export type NewSequenceTab = Omit<SequenceTab, "id">;
+export type NewStructureTab = Omit<StructureTab, "id">;
 export type NewSqlTab = Omit<SqlTab, "id">;
-export type NewTab = NewDashboardTab | NewTableTab | NewSqlTab;
+export type NewTab = NewDashboardTab | NewTableTab | NewViewTab | NewFunctionTab | NewSequenceTab | NewStructureTab | NewSqlTab;
 
 interface TabContextValue {
   tabs: Tab[];
@@ -78,8 +106,68 @@ export function TabProvider({ children }: TabProviderProps) {
         const existing = tabs.find(
           (t) =>
             t.type === "table" &&
-            t.schema === tableData.schema &&
-            t.tableName === tableData.tableName
+            (t as TableTab).schema === tableData.schema &&
+            (t as TableTab).tableName === tableData.tableName
+        );
+        if (existing) {
+          setActiveTabId(existing.id);
+          return existing.id;
+        }
+      }
+
+      // For view tabs, check if already open
+      if (tabData.type === "view") {
+        const viewData = tabData as NewViewTab;
+        const existing = tabs.find(
+          (t) =>
+            t.type === "view" &&
+            (t as ViewTab).schema === viewData.schema &&
+            (t as ViewTab).viewName === viewData.viewName
+        );
+        if (existing) {
+          setActiveTabId(existing.id);
+          return existing.id;
+        }
+      }
+
+      // For function tabs, check if already open
+      if (tabData.type === "function") {
+        const funcData = tabData as NewFunctionTab;
+        const existing = tabs.find(
+          (t) =>
+            t.type === "function" &&
+            (t as FunctionTab).schema === funcData.schema &&
+            (t as FunctionTab).functionName === funcData.functionName
+        );
+        if (existing) {
+          setActiveTabId(existing.id);
+          return existing.id;
+        }
+      }
+
+      // For sequence tabs, check if already open
+      if (tabData.type === "sequence") {
+        const seqData = tabData as NewSequenceTab;
+        const existing = tabs.find(
+          (t) =>
+            t.type === "sequence" &&
+            (t as SequenceTab).schema === seqData.schema &&
+            (t as SequenceTab).sequenceName === seqData.sequenceName
+        );
+        if (existing) {
+          setActiveTabId(existing.id);
+          return existing.id;
+        }
+      }
+
+      // For structure tabs, check if already open
+      if (tabData.type === "structure") {
+        const structData = tabData as NewStructureTab;
+        const existing = tabs.find(
+          (t) =>
+            t.type === "structure" &&
+            (t as StructureTab).schema === structData.schema &&
+            (t as StructureTab).tableName === structData.tableName
         );
         if (existing) {
           setActiveTabId(existing.id);
@@ -127,7 +215,7 @@ export function TabProvider({ children }: TabProviderProps) {
 
   const updateTab = useCallback((tabId: string, updates: Partial<Tab>) => {
     setTabs((prev) =>
-      prev.map((tab) => (tab.id === tabId ? { ...tab, ...updates } : tab))
+      prev.map((tab) => (tab.id === tabId ? ({ ...tab, ...updates } as Tab) : tab))
     );
   }, []);
 

@@ -26,7 +26,7 @@ import {
 import { SqlEditorTab } from "../components/SqlEditorTab";
 import { useConnections } from "../context/ConnectionsContext";
 import { useToast } from "../context/ToastContext";
-import { TabProvider, useTabs, TableTab, SqlTab } from "../context/TabContext";
+import { TabProvider, useTabs, TableTab, ViewTab, FunctionTab, SequenceTab, SqlTab } from "../context/TabContext";
 import styles from "./ConnectionDetails.module.css";
 
 interface ColumnInfo {
@@ -72,6 +72,25 @@ function ConnectionWorkspace() {
   const [tableData, setTableData] = useState<any[]>([]);
   const [columnInfo, setColumnInfo] = useState<ColumnInfo[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
+
+  // View data (for view tabs)
+  const [viewData, setViewData] = useState<any[]>([]);
+  const [viewColumnInfo, setViewColumnInfo] = useState<ColumnInfo[]>([]);
+  const [isViewLoading, setIsViewLoading] = useState(false);
+  const [viewPagination, setViewPagination] = useState<PaginationState>({
+    page: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+    totalCount: 0,
+  });
+
+  // Function definition (for function tabs)
+  const [functionDefinition, setFunctionDefinition] = useState<string>("");
+  const [functionMetadata, setFunctionMetadata] = useState<Record<string, any> | null>(null);
+  const [isFunctionLoading, setIsFunctionLoading] = useState(false);
+
+  // Sequence info (for sequence tabs)
+  const [sequenceInfo, setSequenceInfo] = useState<Record<string, any> | null>(null);
+  const [isSequenceLoading, setIsSequenceLoading] = useState(false);
 
   // Pagination state
   const [pagination, setPagination] = useState<PaginationState>({
@@ -274,15 +293,123 @@ function ConnectionWorkspace() {
     [id, toast]
   );
 
+  // Fetch view data with pagination
+  const fetchViewData = useCallback(
+    async (
+      viewName: string,
+      schema: string,
+      page: number,
+      pageSize: number
+    ) => {
+      if (!id) {
+        setViewData([]);
+        return;
+      }
+
+      setIsViewLoading(true);
+      try {
+        const result = await invoke<PaginatedTableData>("get_view_data", {
+          id,
+          view: viewName,
+          schema: schema,
+          limit: pageSize,
+          offset: page * pageSize,
+        });
+        setViewData(result.rows);
+        setViewColumnInfo(result.columns || []);
+        setViewPagination((prev) => ({
+          ...prev,
+          page,
+          pageSize,
+          totalCount: result.total_count,
+        }));
+      } catch (e: any) {
+        console.error(e);
+        toast.error(`Failed to load view data: ${e}`);
+      } finally {
+        setIsViewLoading(false);
+      }
+    },
+    [id, toast]
+  );
+
+  // Fetch function info
+  const fetchFunctionInfo = useCallback(
+    async (functionName: string, schema: string) => {
+      if (!id) {
+        setFunctionDefinition("");
+        setFunctionMetadata(null);
+        return;
+      }
+
+      setIsFunctionLoading(true);
+      try {
+        const result = await invoke<Record<string, any>>("get_function_info", {
+          id,
+          functionName: functionName,
+          schema: schema,
+        });
+        setFunctionDefinition(result.definition || "");
+        setFunctionMetadata(result);
+      } catch (e: any) {
+        console.error(e);
+        toast.error(`Failed to load function info: ${e}`);
+      } finally {
+        setIsFunctionLoading(false);
+      }
+    },
+    [id, toast]
+  );
+
+  // Fetch sequence info
+  const fetchSequenceInfo = useCallback(
+    async (sequenceName: string, schema: string) => {
+      if (!id) {
+        setSequenceInfo(null);
+        return;
+      }
+
+      setIsSequenceLoading(true);
+      try {
+        const result = await invoke<Record<string, any>>("get_sequence_info", {
+          id,
+          sequenceName: sequenceName,
+          schema: schema,
+        });
+        setSequenceInfo(result);
+      } catch (e: any) {
+        console.error(e);
+        toast.error(`Failed to load sequence info: ${e}`);
+      } finally {
+        setIsSequenceLoading(false);
+      }
+    },
+    [id, toast]
+  );
+
   // Fetch data when a table tab becomes active
   useEffect(() => {
-    if (!id || !activeTab || activeTab.type !== "table") {
+    if (!id || !activeTab) {
       setTableData([]);
+      setViewData([]);
       setPagination((prev) => ({ ...prev, totalCount: 0, page: 0 }));
+      setViewPagination((prev) => ({ ...prev, totalCount: 0, page: 0 }));
       return;
     }
-    const tableTab = activeTab as TableTab;
-    fetchTableData(tableTab.tableName, tableTab.schema, 0, pagination.pageSize);
+
+    if (activeTab.type === "table") {
+      const tableTab = activeTab as TableTab;
+      fetchTableData(tableTab.tableName, tableTab.schema, 0, pagination.pageSize);
+    } else if (activeTab.type === "view") {
+      const viewTab = activeTab as ViewTab;
+      fetchViewData(viewTab.viewName, viewTab.schema, 0, viewPagination.pageSize);
+    } else if (activeTab.type === "function") {
+      const funcTab = activeTab as FunctionTab;
+      fetchFunctionInfo(funcTab.functionName, funcTab.schema);
+    } else if (activeTab.type === "sequence") {
+      const seqTab = activeTab as SequenceTab;
+      fetchSequenceInfo(seqTab.sequenceName, seqTab.schema);
+    }
   }, [id, activeTab?.id]);
 
   const handlePageChange = (newPage: number) => {
@@ -312,8 +439,28 @@ function ConnectionWorkspace() {
         schema: activeSchema,
         tableName: name,
       });
+    } else if (type === "views") {
+      openTab({
+        type: "view",
+        title: name,
+        schema: activeSchema,
+        viewName: name,
+      });
+    } else if (type === "functions") {
+      openTab({
+        type: "function",
+        title: name,
+        schema: activeSchema,
+        functionName: name,
+      });
+    } else if (type === "sequences") {
+      openTab({
+        type: "sequence",
+        title: name,
+        schema: activeSchema,
+        sequenceName: name,
+      });
     }
-    // TODO: Handle views, functions, sequences
   };
 
   const handleOpenSqlEditor = () => {
@@ -505,6 +652,12 @@ function ConnectionWorkspace() {
           selectedItem={
             activeTab?.type === "table"
               ? { type: "tables", name: (activeTab as TableTab).tableName }
+              : activeTab?.type === "view"
+              ? { type: "views", name: (activeTab as ViewTab).viewName }
+              : activeTab?.type === "function"
+              ? { type: "functions", name: (activeTab as FunctionTab).functionName }
+              : activeTab?.type === "sequence"
+              ? { type: "sequences", name: (activeTab as SequenceTab).sequenceName }
               : null
           }
           onSelectItem={handleSelectItem}
@@ -542,6 +695,143 @@ function ConnectionWorkspace() {
                   selectionActions={selectionActions}
                 />
               </div>
+            </div>
+          )}
+
+          {/* View tab - read-only data display */}
+          {activeTab?.type === "view" && (
+            <div className={styles.tableView}>
+              <div className={styles.viewHeader}>
+                <span className={styles.viewBadge}>Read-Only View</span>
+              </div>
+              <div className={styles.tableContent}>
+                <DataTable
+                  data={viewData}
+                  columnInfo={viewColumnInfo}
+                  isLoading={isViewLoading}
+                  pagination={viewPagination}
+                  onPageChange={(newPage) => {
+                    const viewTab = activeTab as ViewTab;
+                    fetchViewData(viewTab.viewName, viewTab.schema, newPage, viewPagination.pageSize);
+                  }}
+                  onPageSizeChange={(newPageSize) => {
+                    const viewTab = activeTab as ViewTab;
+                    fetchViewData(viewTab.viewName, viewTab.schema, 0, newPageSize);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Function tab */}
+          {activeTab?.type === "function" && (
+            <div className={styles.functionView}>
+              {isFunctionLoading ? (
+                <div className={styles.loadingContainer}>
+                  <div className={styles.spinner} />
+                  <p>Loading function definition...</p>
+                </div>
+              ) : (
+                <>
+                  {functionMetadata && (
+                    <div className={styles.functionMeta}>
+                      <h3>Function Details</h3>
+                      <div className={styles.metaGrid}>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Language:</span>
+                          <span className={styles.metaValue}>{functionMetadata.language}</span>
+                        </div>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Return Type:</span>
+                          <span className={styles.metaValue}>{functionMetadata.return_type}</span>
+                        </div>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Arguments:</span>
+                          <span className={styles.metaValue}>{functionMetadata.arguments || "None"}</span>
+                        </div>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Volatility:</span>
+                          <span className={styles.metaValue}>{functionMetadata.volatility}</span>
+                        </div>
+                        <div className={styles.metaItem}>
+                          <span className={styles.metaLabel}>Strict:</span>
+                          <span className={styles.metaValue}>{functionMetadata.is_strict ? "Yes" : "No"}</span>
+                        </div>
+                        {functionMetadata.description && (
+                          <div className={`${styles.metaItem} ${styles.fullWidth}`}>
+                            <span className={styles.metaLabel}>Description:</span>
+                            <span className={styles.metaValue}>{functionMetadata.description}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className={styles.functionCode}>
+                    <h3>Definition</h3>
+                    <pre className={styles.codeBlock}>
+                      <code>{functionDefinition || "No definition available"}</code>
+                    </pre>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Sequence tab */}
+          {activeTab?.type === "sequence" && (
+            <div className={styles.sequenceView}>
+              {isSequenceLoading ? (
+                <div className={styles.loadingContainer}>
+                  <div className={styles.spinner} />
+                  <p>Loading sequence info...</p>
+                </div>
+              ) : sequenceInfo ? (
+                <div className={styles.sequenceInfo}>
+                  <h3>Sequence Properties</h3>
+                  <div className={styles.metaGrid}>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Name:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.name}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Schema:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.schema}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Data Type:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.data_type}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Current Value:</span>
+                      <span className={`${styles.metaValue} ${styles.highlight}`}>{sequenceInfo.current_value?.toLocaleString()}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Start Value:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.start_value?.toLocaleString()}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Increment:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.increment?.toLocaleString()}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Min Value:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.min_value?.toLocaleString()}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Max Value:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.max_value?.toLocaleString()}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Cycle:</span>
+                      <span className={styles.metaValue}>{sequenceInfo.cycle ? "Yes" : "No"}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.emptyState}>
+                  <p>No sequence information available</p>
+                </div>
+              )}
             </div>
           )}
 

@@ -44,8 +44,12 @@ pub fn run() {
             commands::get_schemas,
             commands::get_tables,
             commands::get_table_data,
+            commands::get_view_data,
             commands::get_database_info,
             commands::get_schema_objects,
+            commands::get_function_info,
+            commands::get_sequence_info,
+            commands::get_table_structure,
             commands::execute_query,
         ])
         .run(tauri::generate_context!())

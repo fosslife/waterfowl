@@ -11,7 +11,8 @@ pub mod postgres;
 
 use async_trait::async_trait;
 use crate::types::{
-    ConnectionConfig, DatabaseInfo, PaginatedTableData, QueryResult, SchemaObjects,
+    ConnectionConfig, DatabaseInfo, FunctionInfo, PaginatedTableData, QueryResult, 
+    SchemaObjects, SequenceInfo, TableStructure,
 };
 
 /// Trait that all database drivers must implement.
@@ -40,11 +41,29 @@ pub trait DatabaseDriver: Send + Sync {
         offset: i64,
     ) -> Result<PaginatedTableData, String>;
 
+    /// Get paginated data from a view (read-only).
+    async fn get_view_data(
+        &self,
+        view: &str,
+        schema: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<PaginatedTableData, String>;
+
     /// Get high-level database information.
     async fn get_database_info(&self, schema: &str) -> Result<DatabaseInfo, String>;
 
     /// Get all objects in a schema (tables, views, functions, sequences).
     async fn get_schema_objects(&self, schema: &str) -> Result<SchemaObjects, String>;
+
+    /// Get function definition and metadata.
+    async fn get_function_info(&self, function_name: &str, schema: &str) -> Result<FunctionInfo, String>;
+
+    /// Get sequence information.
+    async fn get_sequence_info(&self, sequence_name: &str, schema: &str) -> Result<SequenceInfo, String>;
+
+    /// Get table structure (columns, indexes, constraints).
+    async fn get_table_structure(&self, table: &str, schema: &str) -> Result<TableStructure, String>;
 
     /// Execute an arbitrary SQL query.
     async fn execute_query(&self, query: &str) -> Result<QueryResult, String>;
@@ -121,6 +140,20 @@ impl DatabaseDriver for DriverConnection {
         }
     }
 
+    async fn get_view_data(
+        &self,
+        view: &str,
+        schema: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<PaginatedTableData, String> {
+        match self {
+            DriverConnection::Postgres(driver) => {
+                driver.get_view_data(view, schema, limit, offset).await
+            }
+        }
+    }
+
     async fn get_database_info(&self, schema: &str) -> Result<DatabaseInfo, String> {
         match self {
             DriverConnection::Postgres(driver) => driver.get_database_info(schema).await,
@@ -130,6 +163,24 @@ impl DatabaseDriver for DriverConnection {
     async fn get_schema_objects(&self, schema: &str) -> Result<SchemaObjects, String> {
         match self {
             DriverConnection::Postgres(driver) => driver.get_schema_objects(schema).await,
+        }
+    }
+
+    async fn get_function_info(&self, function_name: &str, schema: &str) -> Result<FunctionInfo, String> {
+        match self {
+            DriverConnection::Postgres(driver) => driver.get_function_info(function_name, schema).await,
+        }
+    }
+
+    async fn get_sequence_info(&self, sequence_name: &str, schema: &str) -> Result<SequenceInfo, String> {
+        match self {
+            DriverConnection::Postgres(driver) => driver.get_sequence_info(sequence_name, schema).await,
+        }
+    }
+
+    async fn get_table_structure(&self, table: &str, schema: &str) -> Result<TableStructure, String> {
+        match self {
+            DriverConnection::Postgres(driver) => driver.get_table_structure(table, schema).await,
         }
     }
 

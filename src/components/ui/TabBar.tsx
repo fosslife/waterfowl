@@ -1,4 +1,4 @@
-import { X, Table, Terminal, LayoutDashboard } from "lucide-react";
+import { X, Table, Terminal, LayoutDashboard, Eye, Code2, Hash, Database } from "lucide-react";
 import { Tab, TabType } from "../../context/TabContext";
 import styles from "./TabBar.module.css";
 import clsx from "clsx";
@@ -13,6 +13,10 @@ interface TabBarProps {
 const TAB_ICONS: Record<TabType, React.ReactNode> = {
   dashboard: <LayoutDashboard size={14} />,
   table: <Table size={14} />,
+  view: <Eye size={14} />,
+  function: <Code2 size={14} />,
+  sequence: <Hash size={14} />,
+  structure: <Database size={14} />,
   sql: <Terminal size={14} />,
 };
 

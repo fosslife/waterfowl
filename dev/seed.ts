@@ -90,6 +90,26 @@ function generateIPv6(): string {
 // ============================================================================
 
 const DROP_TABLES_SQL = `
+-- Drop views first (they depend on tables)
+DROP VIEW IF EXISTS v_user_stats CASCADE;
+DROP VIEW IF EXISTS v_product_sales CASCADE;
+DROP VIEW IF EXISTS v_active_sessions CASCADE;
+DROP VIEW IF EXISTS v_order_summary CASCADE;
+DROP VIEW IF EXISTS v_recent_reviews CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mv_product_rankings CASCADE;
+
+-- Drop functions
+DROP FUNCTION IF EXISTS fn_calculate_order_total CASCADE;
+DROP FUNCTION IF EXISTS fn_get_user_stats CASCADE;
+DROP FUNCTION IF EXISTS fn_update_timestamps CASCADE;
+DROP FUNCTION IF EXISTS fn_validate_email CASCADE;
+DROP FUNCTION IF EXISTS fn_generate_order_number CASCADE;
+
+-- Drop custom sequences
+DROP SEQUENCE IF EXISTS order_number_seq CASCADE;
+DROP SEQUENCE IF EXISTS invoice_number_seq CASCADE;
+DROP SEQUENCE IF EXISTS ticket_number_seq CASCADE;
+
 -- Drop tables in reverse dependency order
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -633,6 +653,229 @@ CREATE TABLE type_showcase (
   
   created_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+`;
+
+// ============================================================================
+// VIEWS SQL
+// ============================================================================
+
+const CREATE_VIEWS_SQL = `
+-- View: User statistics summary
+CREATE VIEW v_user_stats AS
+SELECT 
+    u.id,
+    u.username,
+    u.email,
+    u.role,
+    u.is_active,
+    u.login_count,
+    u.balance,
+    u.rating,
+    u.created_at,
+    p.first_name,
+    p.last_name,
+    p.city,
+    p.country,
+    COUNT(DISTINCT o.id) as total_orders,
+    COALESCE(SUM(o.total_amount), 0) as total_spent,
+    COUNT(DISTINCT pr.id) as total_reviews
+FROM users u
+LEFT JOIN user_profiles p ON u.id = p.user_id
+LEFT JOIN orders o ON u.id = o.user_id
+LEFT JOIN product_reviews pr ON u.id = pr.user_id
+GROUP BY u.id, p.id;
+
+-- View: Product sales summary
+CREATE VIEW v_product_sales AS
+SELECT 
+    p.id,
+    p.name,
+    p.sku,
+    p.price,
+    p.quantity as stock,
+    c.name as category_name,
+    p.rating_avg,
+    p.rating_count,
+    p.view_count,
+    p.sale_count,
+    COALESCE(SUM(oi.quantity), 0) as units_sold,
+    COALESCE(SUM(oi.total_price), 0) as revenue
+FROM products p
+LEFT JOIN categories c ON p.category_id = c.id
+LEFT JOIN order_items oi ON p.id = oi.product_id
+GROUP BY p.id, c.id;
+
+-- View: Active user sessions
+CREATE VIEW v_active_sessions AS
+SELECT 
+    s.id,
+    s.user_id,
+    u.username,
+    u.email,
+    s.ip_address,
+    s.user_agent,
+    s.device_info,
+    s.started_at,
+    s.expires_at,
+    EXTRACT(epoch FROM (NOW() - s.started_at)) / 60 as session_minutes
+FROM user_sessions s
+JOIN users u ON s.user_id = u.id
+WHERE s.is_active = true AND s.expires_at > NOW();
+
+-- View: Order summary
+CREATE VIEW v_order_summary AS
+SELECT 
+    o.id,
+    o.order_number,
+    u.username,
+    u.email,
+    o.status,
+    o.priority,
+    o.subtotal,
+    o.tax_amount,
+    o.shipping_cost,
+    o.discount_amount,
+    o.total_amount,
+    o.is_paid,
+    o.created_at,
+    o.shipped_at,
+    o.delivered_at,
+    COUNT(oi.id) as item_count,
+    SUM(oi.quantity) as total_items
+FROM orders o
+JOIN users u ON o.user_id = u.id
+LEFT JOIN order_items oi ON o.id = oi.order_id
+GROUP BY o.id, u.id;
+
+-- View: Recent product reviews
+CREATE VIEW v_recent_reviews AS
+SELECT 
+    pr.id,
+    pr.rating,
+    pr.title,
+    pr.content,
+    pr.created_at,
+    p.name as product_name,
+    p.sku as product_sku,
+    u.username as reviewer_username,
+    pr.is_verified,
+    pr.helpful_count
+FROM product_reviews pr
+JOIN products p ON pr.product_id = p.id
+JOIN users u ON pr.user_id = u.id
+WHERE pr.created_at > NOW() - INTERVAL '30 days'
+ORDER BY pr.created_at DESC;
+`;
+
+// ============================================================================
+// FUNCTIONS SQL
+// ============================================================================
+
+const CREATE_FUNCTIONS_SQL = `
+-- Function: Calculate order total
+CREATE OR REPLACE FUNCTION fn_calculate_order_total(p_order_id BIGINT)
+RETURNS NUMERIC(12,2) AS $$
+DECLARE
+    v_total NUMERIC(12,2);
+BEGIN
+    SELECT COALESCE(SUM(total_price), 0)
+    INTO v_total
+    FROM order_items
+    WHERE order_id = p_order_id;
+    
+    RETURN v_total;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Function: Get user statistics
+CREATE OR REPLACE FUNCTION fn_get_user_stats(p_user_id INTEGER)
+RETURNS TABLE(
+    total_orders BIGINT,
+    total_spent NUMERIC,
+    avg_order_value NUMERIC,
+    total_reviews BIGINT,
+    avg_rating NUMERIC
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        COUNT(DISTINCT o.id)::BIGINT as total_orders,
+        COALESCE(SUM(o.total_amount), 0)::NUMERIC as total_spent,
+        COALESCE(AVG(o.total_amount), 0)::NUMERIC as avg_order_value,
+        COUNT(DISTINCT pr.id)::BIGINT as total_reviews,
+        COALESCE(AVG(pr.rating), 0)::NUMERIC as avg_rating
+    FROM users u
+    LEFT JOIN orders o ON u.id = o.user_id
+    LEFT JOIN product_reviews pr ON u.id = pr.user_id
+    WHERE u.id = p_user_id;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Function: Update timestamps trigger function
+CREATE OR REPLACE FUNCTION fn_update_timestamps()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function: Validate email format
+CREATE OR REPLACE FUNCTION fn_validate_email(p_email TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN p_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$';
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Function: Generate unique order number
+CREATE OR REPLACE FUNCTION fn_generate_order_number()
+RETURNS TEXT AS $$
+DECLARE
+    v_prefix TEXT := 'ORD';
+    v_year TEXT := TO_CHAR(CURRENT_DATE, 'YYYY');
+    v_seq BIGINT;
+BEGIN
+    v_seq := nextval('order_number_seq');
+    RETURN v_prefix || '-' || v_year || '-' || LPAD(v_seq::TEXT, 8, '0');
+END;
+$$ LANGUAGE plpgsql;
+`;
+
+// ============================================================================
+// SEQUENCES SQL
+// ============================================================================
+
+const CREATE_SEQUENCES_SQL = `
+-- Custom sequence for order numbers
+CREATE SEQUENCE order_number_seq
+    START WITH 1000
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 10;
+
+-- Custom sequence for invoice numbers
+CREATE SEQUENCE invoice_number_seq
+    START WITH 100000
+    INCREMENT BY 1
+    MINVALUE 100000
+    MAXVALUE 999999999
+    CYCLE
+    CACHE 5;
+
+-- Custom sequence for ticket/support numbers  
+CREATE SEQUENCE ticket_number_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+-- Advance sequences to have some initial values
+SELECT nextval('order_number_seq') FROM generate_series(1, 50);
+SELECT nextval('invoice_number_seq') FROM generate_series(1, 25);
+SELECT nextval('ticket_number_seq') FROM generate_series(1, 100);
 `;
 
 // ============================================================================
@@ -1907,6 +2150,21 @@ async function main() {
     await seedTimeSeriesData(client, CONFIG.recordCount * 5);
     await seedConfigSettings(client, Math.min(CONFIG.recordCount, 50));
     await seedTypeShowcase(client, CONFIG.recordCount);
+
+    // Create sequences (after data so we can advance them)
+    log("Creating custom sequences...");
+    await client.query(CREATE_SEQUENCES_SQL);
+    log("Sequences created");
+
+    // Create functions
+    log("Creating functions...");
+    await client.query(CREATE_FUNCTIONS_SQL);
+    log("Functions created");
+
+    // Create views (after all tables have data)
+    log("Creating views...");
+    await client.query(CREATE_VIEWS_SQL);
+    log("Views created");
 
     console.log("=".repeat(60));
     console.log("Seeding complete!");
