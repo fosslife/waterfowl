@@ -1,7 +1,32 @@
-# Tauri + React + Typescript
+# Waterfowl
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Waterfowl is a database management tool for PostgreSQL. 
 
-## Recommended IDE Setup
+| App is work in progress, not ready for production use
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Installation
+
+```bash
+yarn install
+yarn tauri dev
+```
+
+## Screenshots
+
+![Waterfowl](/dev/1.png)
+![Waterfowl](/dev/2.png)
+![Waterfowl](/dev/3.png)
+
+
+## Features
+
+- Connection Management
+- Schema Browser
+- Table Browser
+- Query Editor
+- Data Export
+- Data Import
+- Data Editing
+
+
+
