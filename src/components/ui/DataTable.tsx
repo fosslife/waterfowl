@@ -41,6 +41,7 @@ export interface SelectionActions {
 export interface ColumnInfo {
   name: string;
   pg_type: string;
+  ordinal_position?: number;
 }
 
 interface DataTableProps {
@@ -128,11 +129,15 @@ export function DataTable({
     return map;
   }, [columnInfo]);
 
-  // Generate columns dynamically from data
+  // Generate columns dynamically - use columnInfo order if available (pre-sorted by ordinal_position)
   const columns = useMemo<ColumnDef<Record<string, any>>[]>(() => {
     if (data.length === 0) return [];
 
-    const keys = Object.keys(data[0]);
+    // Use columnInfo order if available, otherwise fall back to Object.keys
+    const keys = columnInfo && columnInfo.length > 0
+      ? columnInfo.map(col => col.name)
+      : Object.keys(data[0]);
+
     return keys.map((key) => ({
       accessorKey: key,
       header: key,
@@ -148,7 +153,7 @@ export function DataTable({
         type: columnTypeMap[key] || inferType(data, key),
       },
     }));
-  }, [data, columnTypeMap]);
+  }, [data, columnInfo, columnTypeMap]);
 
   const table = useReactTable({
     data,

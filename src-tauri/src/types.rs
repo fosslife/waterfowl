@@ -77,6 +77,9 @@ pub struct ColumnInfo {
     /// PostgreSQL type name (e.g., "TEXT", "INT4", "user_role" for enums)
     #[serde(rename = "pg_type")]
     pub data_type: String,
+    /// Column position in the table (1-indexed, from information_schema)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ordinal_position: Option<i32>,
 }
 
 /// Result of a paginated table data query.

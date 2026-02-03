@@ -275,6 +275,7 @@ function ConnectionWorkspace() {
           limit: pageSize,
           offset: page * pageSize,
         });
+        console.log("Got table data", result.columns)
         setTableData(result.rows);
         setColumnInfo(result.columns || []);
         setPagination((prev) => ({

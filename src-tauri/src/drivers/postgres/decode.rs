@@ -10,19 +10,26 @@ use sqlx::{Column, Row, TypeInfo, ValueRef};
 use crate::types::ColumnInfo;
 
 /// Decode a vector of PgRows into JSON-compatible maps and extract column info.
-pub fn decode_rows(rows: &[PgRow]) -> (Vec<Map<String, Value>>, Vec<ColumnInfo>) {
+/// If `column_order` is provided, columns will be returned in that order.
+/// Otherwise, columns are extracted from the result set (may not preserve schema order).
+pub fn decode_rows(rows: &[PgRow], column_order: Option<Vec<ColumnInfo>>) -> (Vec<Map<String, Value>>, Vec<ColumnInfo>) {
     let mut results = Vec::new();
-    let mut columns_info = Vec::new();
-
-    // Extract column metadata from the first row
-    if let Some(first_row) = rows.first() {
-        for col in first_row.columns() {
-            columns_info.push(ColumnInfo {
+    
+    // Use provided column order, or extract from result set
+    let columns_info = if let Some(ordered_cols) = column_order {
+        ordered_cols
+    } else {
+        // Extract column metadata from the first row (fallback, may not preserve order)
+        if let Some(first_row) = rows.first() {
+            first_row.columns().iter().map(|col| ColumnInfo {
                 name: col.name().to_string(),
                 data_type: col.type_info().name().to_string(),
-            });
+                ordinal_position: None,
+            }).collect()
+        } else {
+            Vec::new()
         }
-    }
+    };
 
     for row in rows {
         let mut map = Map::new();

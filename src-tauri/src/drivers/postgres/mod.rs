@@ -8,7 +8,7 @@ use sqlx::Row;
 
 use crate::drivers::DatabaseDriver;
 use crate::types::{
-    ConnectionConfig, DatabaseInfo, FunctionInfo, IndexInfo, PaginatedTableData, 
+    ColumnInfo, ConnectionConfig, DatabaseInfo, FunctionInfo, IndexInfo, PaginatedTableData, 
     QueryResult, SchemaObject, SchemaObjects, SequenceInfo, TableColumn, TableStructure,
 };
 
@@ -103,6 +103,35 @@ impl DatabaseDriver for PostgresDriver {
             return Err("Invalid schema name".to_string());
         }
 
+        // Fetch column metadata with ordinal positions (preserves schema order)
+        let column_rows = sqlx::query(
+            r#"
+            SELECT column_name, udt_name, ordinal_position
+            FROM information_schema.columns
+            WHERE table_schema = $1 AND table_name = $2
+            ORDER BY ordinal_position
+            "#
+        )
+        .bind(schema)
+        .bind(table)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let ordered_columns: Vec<ColumnInfo> = column_rows
+            .iter()
+            .map(|r| {
+                let name: String = r.get("column_name");
+                let data_type: String = r.get("udt_name");
+                let ordinal: i32 = r.get("ordinal_position");
+                ColumnInfo {
+                    name,
+                    data_type: data_type.to_uppercase(),
+                    ordinal_position: Some(ordinal),
+                }
+            })
+            .collect();
+
         // Get total count
         let count_row =
             sqlx::query(&format!("SELECT COUNT(*) FROM \"{}\".\"{}\"", schema, table))
@@ -120,7 +149,7 @@ impl DatabaseDriver for PostgresDriver {
         .await
         .map_err(|e| e.to_string())?;
 
-        let (results, columns_info) = decode::decode_rows(&rows);
+        let (results, columns_info) = decode::decode_rows(&rows, Some(ordered_columns));
 
         Ok(PaginatedTableData {
             rows: results,
@@ -307,7 +336,36 @@ impl DatabaseDriver for PostgresDriver {
             return Err("Invalid schema name".to_string());
         }
 
-        // Get total count - for views we try a count but catch errors
+        // Fetch column metadata with ordinal positions (views also have columns in information_schema)
+        let column_rows = sqlx::query(
+            r#"
+            SELECT column_name, udt_name, ordinal_position
+            FROM information_schema.columns
+            WHERE table_schema = $1 AND table_name = $2
+            ORDER BY ordinal_position
+            "#
+        )
+        .bind(schema)
+        .bind(view)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let ordered_columns: Vec<ColumnInfo> = column_rows
+            .iter()
+            .map(|r| {
+                let name: String = r.get("column_name");
+                let data_type: String = r.get("udt_name");
+                let ordinal: i32 = r.get("ordinal_position");
+                ColumnInfo {
+                    name,
+                    data_type: data_type.to_uppercase(),
+                    ordinal_position: Some(ordinal),
+                }
+            })
+            .collect();
+
+        // Get total count (may fail for complex views)
         let count_result =
             sqlx::query(&format!("SELECT COUNT(*) FROM \"{}\".\"{}\"", schema, view))
                 .fetch_one(&self.pool)
@@ -327,7 +385,7 @@ impl DatabaseDriver for PostgresDriver {
         .await
         .map_err(|e| e.to_string())?;
 
-        let (results, columns_info) = decode::decode_rows(&rows);
+        let (results, columns_info) = decode::decode_rows(&rows, Some(ordered_columns));
 
         Ok(PaginatedTableData {
             rows: results,
@@ -583,7 +641,7 @@ impl DatabaseDriver for PostgresDriver {
         let execution_time_ms = start_time.elapsed().as_millis();
         let rows_affected = rows.len() as u64;
 
-        let (results, columns_info) = decode::decode_rows(&rows);
+        let (results, columns_info) = decode::decode_rows(&rows, None);
 
         Ok(QueryResult {
             rows: results,
