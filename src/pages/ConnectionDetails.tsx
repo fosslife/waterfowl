@@ -14,6 +14,8 @@ import {
   DataTable,
   PaginationState,
   SelectionActions,
+  CellActions,
+  formatAsSqlLiteral,
 } from "../components/ui/DataTable";
 import { TabBar } from "../components/ui/TabBar";
 import { Button } from "../components/ui/Button";
@@ -31,7 +33,15 @@ import {
   deleteConnection,
   getConnection,
 } from "../services/connections";
-import { TabProvider, useTabs, TableTab, ViewTab, FunctionTab, SequenceTab, SqlTab } from "../context/TabContext";
+import {
+  TabProvider,
+  useTabs,
+  TableTab,
+  ViewTab,
+  FunctionTab,
+  SequenceTab,
+  SqlTab,
+} from "../context/TabContext";
 import styles from "./ConnectionDetails.module.css";
 
 interface ColumnInfo {
@@ -43,6 +53,26 @@ interface PaginatedTableData {
   rows: Record<string, any>[];
   total_count: number;
   columns: ColumnInfo[];
+}
+
+interface TableColumn {
+  name: string;
+  data_type: string;
+  is_nullable: boolean;
+  default_value: string | null;
+  is_primary_key: boolean;
+  is_unique: boolean;
+  foreign_key: string | null;
+}
+
+interface TableStructure {
+  name: string;
+  schema: string;
+  columns: TableColumn[];
+  indexes: any[];
+  row_count: number;
+  size: string;
+  description: string | null;
 }
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -67,7 +97,7 @@ function ConnectionWorkspace() {
   const [schemas, setSchemas] = useState<string[]>([]);
   const [activeSchema, setActiveSchema] = useState<string>("public");
   const [schemaObjects, setSchemaObjects] = useState<SchemaObjects | null>(
-    null
+    null,
   );
   const [dbInfo, setDbInfo] = useState<DatabaseInfo | null>(null);
   const [isSchemaLoading, setIsSchemaLoading] = useState(true);
@@ -76,6 +106,7 @@ function ConnectionWorkspace() {
   // Table data (for table tabs)
   const [tableData, setTableData] = useState<any[]>([]);
   const [columnInfo, setColumnInfo] = useState<ColumnInfo[]>([]);
+  const [primaryKeyColumns, setPrimaryKeyColumns] = useState<string[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
   // View data (for view tabs)
@@ -90,11 +121,16 @@ function ConnectionWorkspace() {
 
   // Function definition (for function tabs)
   const [functionDefinition, setFunctionDefinition] = useState<string>("");
-  const [functionMetadata, setFunctionMetadata] = useState<Record<string, any> | null>(null);
+  const [functionMetadata, setFunctionMetadata] = useState<Record<
+    string,
+    any
+  > | null>(null);
   const [isFunctionLoading, setIsFunctionLoading] = useState(false);
 
   // Sequence info (for sequence tabs)
-  const [sequenceInfo, setSequenceInfo] = useState<Record<string, any> | null>(null);
+  const [sequenceInfo, setSequenceInfo] = useState<Record<string, any> | null>(
+    null,
+  );
   const [isSequenceLoading, setIsSequenceLoading] = useState(false);
 
   // Pagination state
@@ -133,7 +169,7 @@ function ConnectionWorkspace() {
             if (typeof val === "object") return JSON.stringify(val);
             return String(val);
           })
-          .join("\t")
+          .join("\t"),
       );
 
       const tsv = [headerLine, ...dataLines].join("\n");
@@ -141,11 +177,67 @@ function ConnectionWorkspace() {
         toast.success(
           `Copied ${rows.length} row${
             rows.length !== 1 ? "s" : ""
-          } to clipboard`
+          } to clipboard`,
         );
       });
     },
-    [toast]
+    [toast],
+  );
+
+  // Fetch table data with pagination
+  const fetchTableData = useCallback(
+    async (
+      tableName: string,
+      schema: string,
+      page: number,
+      pageSize: number,
+    ) => {
+      if (!id) {
+        setTableData([]);
+        return;
+      }
+
+      setIsDataLoading(true);
+      try {
+        const [result, structure] = await Promise.all([
+          invoke<PaginatedTableData>("get_table_data", {
+            id,
+            table: tableName,
+            schema: schema,
+            limit: pageSize,
+            offset: page * pageSize,
+          }),
+          page === 0
+            ? invoke<TableStructure>("get_table_structure", {
+                id,
+                table: tableName,
+                schema: schema,
+              })
+            : null,
+        ]);
+        setTableData(result.rows);
+        setColumnInfo(result.columns || []);
+        setPagination((prev) => ({
+          ...prev,
+          page,
+          pageSize,
+          totalCount: result.total_count,
+        }));
+        if (structure) {
+          setPrimaryKeyColumns(
+            structure.columns
+              .filter((c) => c.is_primary_key)
+              .map((c) => c.name),
+          );
+        }
+      } catch (e: any) {
+        console.error(e);
+        toast.error(`Failed to load table data: ${e}`);
+      } finally {
+        setIsDataLoading(false);
+      }
+    },
+    [id, toast],
   );
 
   const handleDeleteRowsRequest = useCallback((rows: Record<string, any>[]) => {
@@ -156,7 +248,7 @@ function ConnectionWorkspace() {
     toast.info(
       `Delete ${deleteConfirm.rows.length} row${
         deleteConfirm.rows.length !== 1 ? "s" : ""
-      } - Not yet implemented`
+      } - Not yet implemented`,
     );
     setDeleteConfirm({ isOpen: false, rows: [] });
   }, [deleteConfirm.rows, toast]);
@@ -168,6 +260,69 @@ function ConnectionWorkspace() {
   const selectionActions: SelectionActions = {
     onCopyRows: handleCopyRows,
     onDeleteRows: handleDeleteRowsRequest,
+  };
+
+  const handleCellUpdate = useCallback(
+    async (
+      row: Record<string, any>,
+      columnId: string,
+      newValue: string | null,
+    ) => {
+      if (!id || !activeTab || activeTab.type !== "table") return;
+      const tableTab = activeTab as TableTab;
+
+      let whereClause: string;
+      if (primaryKeyColumns.length > 0) {
+        whereClause = primaryKeyColumns
+          .map((col) => {
+            const val = row[col];
+            if (val === null || val === undefined) return `"${col}" IS NULL`;
+            return `"${col}" = ${formatAsSqlLiteral(val)}`;
+          })
+          .join(" AND ");
+      } else {
+        const conditions = columnInfo
+          .map((col) => {
+            const val = row[col.name];
+            if (val === null || val === undefined)
+              return `"${col.name}" IS NULL`;
+            return `"${col.name}" = ${formatAsSqlLiteral(val)}`;
+          })
+          .join(" AND ");
+        whereClause = `ctid = (SELECT ctid FROM "${tableTab.schema}"."${tableTab.tableName}" WHERE ${conditions} LIMIT 1)`;
+      }
+
+      const setValue =
+        newValue === null ? "NULL" : `'${newValue.replace(/'/g, "''")}'`;
+      const query = `UPDATE "${tableTab.schema}"."${tableTab.tableName}" SET "${columnId}" = ${setValue} WHERE ${whereClause}`;
+
+      try {
+        await invoke("execute_query", { id, query });
+        toast.success("Cell updated");
+        fetchTableData(
+          tableTab.tableName,
+          tableTab.schema,
+          pagination.page,
+          pagination.pageSize,
+        );
+      } catch (e: any) {
+        toast.error(`Update failed: ${e}`);
+        throw e;
+      }
+    },
+    [
+      id,
+      activeTab,
+      primaryKeyColumns,
+      columnInfo,
+      toast,
+      fetchTableData,
+      pagination,
+    ],
+  );
+
+  const cellActions: CellActions = {
+    onCellUpdate: handleCellUpdate,
   };
 
   const initConnection = async () => {
@@ -281,53 +436,13 @@ function ConnectionWorkspace() {
     initConnection();
   }, [id]);
 
-  // Fetch table data with pagination
-  const fetchTableData = useCallback(
-    async (
-      tableName: string,
-      schema: string,
-      page: number,
-      pageSize: number
-    ) => {
-      if (!id) {
-        setTableData([]);
-        return;
-      }
-
-      setIsDataLoading(true);
-      try {
-        const result = await invoke<PaginatedTableData>("get_table_data", {
-          id,
-          table: tableName,
-          schema: schema,
-          limit: pageSize,
-          offset: page * pageSize,
-        });
-        setTableData(result.rows);
-        setColumnInfo(result.columns || []);
-        setPagination((prev) => ({
-          ...prev,
-          page,
-          pageSize,
-          totalCount: result.total_count,
-        }));
-      } catch (e: any) {
-        console.error(e);
-        toast.error(`Failed to load table data: ${e}`);
-      } finally {
-        setIsDataLoading(false);
-      }
-    },
-    [id, toast]
-  );
-
   // Fetch view data with pagination
   const fetchViewData = useCallback(
     async (
       viewName: string,
       schema: string,
       page: number,
-      pageSize: number
+      pageSize: number,
     ) => {
       if (!id) {
         setViewData([]);
@@ -358,7 +473,7 @@ function ConnectionWorkspace() {
         setIsViewLoading(false);
       }
     },
-    [id, toast]
+    [id, toast],
   );
 
   // Fetch function info
@@ -386,7 +501,7 @@ function ConnectionWorkspace() {
         setIsFunctionLoading(false);
       }
     },
-    [id, toast]
+    [id, toast],
   );
 
   // Fetch sequence info
@@ -412,7 +527,7 @@ function ConnectionWorkspace() {
         setIsSequenceLoading(false);
       }
     },
-    [id, toast]
+    [id, toast],
   );
 
   // Fetch data when a table tab becomes active
@@ -427,10 +542,20 @@ function ConnectionWorkspace() {
 
     if (activeTab.type === "table") {
       const tableTab = activeTab as TableTab;
-      fetchTableData(tableTab.tableName, tableTab.schema, 0, pagination.pageSize);
+      fetchTableData(
+        tableTab.tableName,
+        tableTab.schema,
+        0,
+        pagination.pageSize,
+      );
     } else if (activeTab.type === "view") {
       const viewTab = activeTab as ViewTab;
-      fetchViewData(viewTab.viewName, viewTab.schema, 0, viewPagination.pageSize);
+      fetchViewData(
+        viewTab.viewName,
+        viewTab.schema,
+        0,
+        viewPagination.pageSize,
+      );
     } else if (activeTab.type === "function") {
       const funcTab = activeTab as FunctionTab;
       fetchFunctionInfo(funcTab.functionName, funcTab.schema);
@@ -447,7 +572,7 @@ function ConnectionWorkspace() {
         tableTab.tableName,
         tableTab.schema,
         newPage,
-        pagination.pageSize
+        pagination.pageSize,
       );
     }
   };
@@ -684,12 +809,18 @@ function ConnectionWorkspace() {
             activeTab?.type === "table"
               ? { type: "tables", name: (activeTab as TableTab).tableName }
               : activeTab?.type === "view"
-              ? { type: "views", name: (activeTab as ViewTab).viewName }
-              : activeTab?.type === "function"
-              ? { type: "functions", name: (activeTab as FunctionTab).functionName }
-              : activeTab?.type === "sequence"
-              ? { type: "sequences", name: (activeTab as SequenceTab).sequenceName }
-              : null
+                ? { type: "views", name: (activeTab as ViewTab).viewName }
+                : activeTab?.type === "function"
+                  ? {
+                      type: "functions",
+                      name: (activeTab as FunctionTab).functionName,
+                    }
+                  : activeTab?.type === "sequence"
+                    ? {
+                        type: "sequences",
+                        name: (activeTab as SequenceTab).sequenceName,
+                      }
+                    : null
           }
           onSelectItem={handleSelectItem}
           onRefresh={refreshSchema}
@@ -724,6 +855,9 @@ function ConnectionWorkspace() {
                   onPageSizeChange={handlePageSizeChange}
                   selectable
                   selectionActions={selectionActions}
+                  cellActions={cellActions}
+                  tableName={(activeTab as TableTab).tableName}
+                  schemaName={(activeTab as TableTab).schema}
                 />
               </div>
             </div>
@@ -743,11 +877,21 @@ function ConnectionWorkspace() {
                   pagination={viewPagination}
                   onPageChange={(newPage) => {
                     const viewTab = activeTab as ViewTab;
-                    fetchViewData(viewTab.viewName, viewTab.schema, newPage, viewPagination.pageSize);
+                    fetchViewData(
+                      viewTab.viewName,
+                      viewTab.schema,
+                      newPage,
+                      viewPagination.pageSize,
+                    );
                   }}
                   onPageSizeChange={(newPageSize) => {
                     const viewTab = activeTab as ViewTab;
-                    fetchViewData(viewTab.viewName, viewTab.schema, 0, newPageSize);
+                    fetchViewData(
+                      viewTab.viewName,
+                      viewTab.schema,
+                      0,
+                      newPageSize,
+                    );
                   }}
                 />
               </div>
@@ -770,28 +914,44 @@ function ConnectionWorkspace() {
                       <div className={styles.metaGrid}>
                         <div className={styles.metaItem}>
                           <span className={styles.metaLabel}>Language:</span>
-                          <span className={styles.metaValue}>{functionMetadata.language}</span>
+                          <span className={styles.metaValue}>
+                            {functionMetadata.language}
+                          </span>
                         </div>
                         <div className={styles.metaItem}>
                           <span className={styles.metaLabel}>Return Type:</span>
-                          <span className={styles.metaValue}>{functionMetadata.return_type}</span>
+                          <span className={styles.metaValue}>
+                            {functionMetadata.return_type}
+                          </span>
                         </div>
                         <div className={styles.metaItem}>
                           <span className={styles.metaLabel}>Arguments:</span>
-                          <span className={styles.metaValue}>{functionMetadata.arguments || "None"}</span>
+                          <span className={styles.metaValue}>
+                            {functionMetadata.arguments || "None"}
+                          </span>
                         </div>
                         <div className={styles.metaItem}>
                           <span className={styles.metaLabel}>Volatility:</span>
-                          <span className={styles.metaValue}>{functionMetadata.volatility}</span>
+                          <span className={styles.metaValue}>
+                            {functionMetadata.volatility}
+                          </span>
                         </div>
                         <div className={styles.metaItem}>
                           <span className={styles.metaLabel}>Strict:</span>
-                          <span className={styles.metaValue}>{functionMetadata.is_strict ? "Yes" : "No"}</span>
+                          <span className={styles.metaValue}>
+                            {functionMetadata.is_strict ? "Yes" : "No"}
+                          </span>
                         </div>
                         {functionMetadata.description && (
-                          <div className={`${styles.metaItem} ${styles.fullWidth}`}>
-                            <span className={styles.metaLabel}>Description:</span>
-                            <span className={styles.metaValue}>{functionMetadata.description}</span>
+                          <div
+                            className={`${styles.metaItem} ${styles.fullWidth}`}
+                          >
+                            <span className={styles.metaLabel}>
+                              Description:
+                            </span>
+                            <span className={styles.metaValue}>
+                              {functionMetadata.description}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -800,7 +960,9 @@ function ConnectionWorkspace() {
                   <div className={styles.functionCode}>
                     <h3>Definition</h3>
                     <pre className={styles.codeBlock}>
-                      <code>{functionDefinition || "No definition available"}</code>
+                      <code>
+                        {functionDefinition || "No definition available"}
+                      </code>
                     </pre>
                   </div>
                 </>
@@ -822,39 +984,59 @@ function ConnectionWorkspace() {
                   <div className={styles.metaGrid}>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Name:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.name}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.name}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Schema:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.schema}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.schema}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Data Type:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.data_type}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.data_type}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Current Value:</span>
-                      <span className={`${styles.metaValue} ${styles.highlight}`}>{sequenceInfo.current_value?.toLocaleString()}</span>
+                      <span
+                        className={`${styles.metaValue} ${styles.highlight}`}
+                      >
+                        {sequenceInfo.current_value?.toLocaleString()}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Start Value:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.start_value?.toLocaleString()}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.start_value?.toLocaleString()}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Increment:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.increment?.toLocaleString()}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.increment?.toLocaleString()}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Min Value:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.min_value?.toLocaleString()}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.min_value?.toLocaleString()}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Max Value:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.max_value?.toLocaleString()}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.max_value?.toLocaleString()}
+                      </span>
                     </div>
                     <div className={styles.metaItem}>
                       <span className={styles.metaLabel}>Cycle:</span>
-                      <span className={styles.metaValue}>{sequenceInfo.cycle ? "Yes" : "No"}</span>
+                      <span className={styles.metaValue}>
+                        {sequenceInfo.cycle ? "Yes" : "No"}
+                      </span>
                     </div>
                   </div>
                 </div>

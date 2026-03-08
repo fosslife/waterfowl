@@ -13,6 +13,14 @@ interface TableRowProps {
   pagination?: PaginationState;
   totalTableWidth: number;
   onToggleSelection: (index: number) => void;
+  selectedCellColumnId?: string | null;
+  onCellClick?: (rowIndex: number, columnId: string) => void;
+  onCellDoubleClick?: (rowIndex: number, columnId: string) => void;
+  onContextMenu?: (
+    e: React.MouseEvent,
+    rowIndex: number,
+    columnId: string,
+  ) => void;
 }
 
 function getCellClass(val: any): string {
@@ -24,7 +32,8 @@ function getCellClass(val: any): string {
   return "";
 }
 
-// Memoized row component - prevents re-render of all rows when only one changes
+
+
 export const TableRow = memo(function TableRow({
   row,
   virtualRow,
@@ -34,6 +43,10 @@ export const TableRow = memo(function TableRow({
   pagination,
   totalTableWidth,
   onToggleSelection,
+  selectedCellColumnId,
+  onCellClick,
+  onCellDoubleClick,
+  onContextMenu,
 }: TableRowProps) {
   return (
     <tr
@@ -70,11 +83,29 @@ export const TableRow = memo(function TableRow({
       </td>
       {row.getVisibleCells().map((cell: any) => {
         const value = cell.getValue();
+        const columnId = cell.column.id;
+        const isCellSelected = selectedCellColumnId === columnId;
+        const cellClass = getCellClass(value);
         return (
           <td
             key={cell.id}
-            className={getCellClass(value)}
+            className={
+              isCellSelected
+                ? cellClass
+                  ? `${cellClass} ${styles.cellSelected}`
+                  : styles.cellSelected
+                : cellClass
+            }
             style={{ width: cell.column.getSize() }}
+            data-cell-row={virtualRow.index}
+            data-cell-col={columnId}
+            onClick={() => onCellClick?.(virtualRow.index, columnId)}
+            onDoubleClick={() =>
+              onCellDoubleClick?.(virtualRow.index, columnId)
+            }
+            onContextMenu={(e) =>
+              onContextMenu?.(e, virtualRow.index, columnId)
+            }
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </td>

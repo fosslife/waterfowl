@@ -21,6 +21,8 @@ import { faker } from "@faker-js/faker";
 const databaseUrl =
   "postgresql://postgres:postgres@localhost:5432/waterfowl_test";
 
+const databaseName = "waterfowl_test";
+
 const seedCount = 100;
 
 const CONFIG = {
@@ -904,12 +906,12 @@ async function seedUsers(client: Client, count: number): Promise<number[]> {
     const tags = randomSubset(
       ["premium", "verified", "beta", "early-adopter", "vip", "newsletter"],
       0,
-      4
+      4,
     );
     const permissions = randomSubset(
       ["read", "write", "delete", "admin", "export", "import"],
       1,
-      4
+      4,
     );
     const metadata = JSON.stringify({
       source: randomElement(["organic", "referral", "ad", "social"]),
@@ -990,7 +992,7 @@ async function seedUsers(client: Client, count: number): Promise<number[]> {
         createdAt,
         updatedAt,
         deletedAt,
-      ]
+      ],
     );
 
     ids.push(result.rows[0].id);
@@ -1002,7 +1004,7 @@ async function seedUsers(client: Client, count: number): Promise<number[]> {
 
 async function seedUserProfiles(
   client: Client,
-  userIds: number[]
+  userIds: number[],
 ): Promise<void> {
   log(`Seeding ${userIds.length} user profiles...`);
   const addressTypes = ["home", "work", "billing", "shipping", "other"];
@@ -1073,9 +1075,9 @@ async function seedUserProfiles(
             "science",
           ],
           0,
-          5
+          5,
         ),
-      ]
+      ],
     );
   }
 
@@ -1085,7 +1087,7 @@ async function seedUserProfiles(
 async function seedUserSessions(
   client: Client,
   userIds: number[],
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} user sessions...`);
 
@@ -1093,7 +1095,7 @@ async function seedUserSessions(
     const userId = randomElement(userIds);
     const startedAt = faker.date.recent({ days: 30 });
     const expiresAt = new Date(
-      startedAt.getTime() + randomInt(1, 24) * 60 * 60 * 1000
+      startedAt.getTime() + randomInt(1, 24) * 60 * 60 * 1000,
     );
     const isActive = Math.random() > 0.7;
     const durationMinutes = randomInt(1, 180);
@@ -1123,7 +1125,7 @@ async function seedUserSessions(
         expiresAt.toISOString(),
         endedAt?.toISOString() || null,
         duration,
-      ]
+      ],
     );
   }
 
@@ -1132,7 +1134,7 @@ async function seedUserSessions(
 
 async function seedCategories(
   client: Client,
-  count: number
+  count: number,
 ): Promise<number[]> {
   log(`Seeding ${count} categories...`);
   const ids: number[] = [];
@@ -1177,7 +1179,7 @@ async function seedCategories(
         randomElement(colors),
         i,
         [slug],
-      ]
+      ],
     );
 
     ids.push(result.rows[0].id);
@@ -1205,7 +1207,7 @@ async function seedCategories(
         randomElement(colors),
         i,
         [slug],
-      ]
+      ],
     );
 
     ids.push(result.rows[0].id);
@@ -1218,7 +1220,7 @@ async function seedCategories(
 async function seedProducts(
   client: Client,
   categoryIds: number[],
-  count: number
+  count: number,
 ): Promise<number[]> {
   log(`Seeding ${count} products...`);
   const ids: number[] = [];
@@ -1278,7 +1280,7 @@ async function seedProducts(
         randomSubset(
           ["new", "sale", "bestseller", "limited", "exclusive", "eco-friendly"],
           0,
-          3
+          3,
         ),
         JSON.stringify({
           color: randomElement([
@@ -1306,7 +1308,7 @@ async function seedProducts(
                   sku: `SKU-${faker.string.alphanumeric(8)}`,
                 },
               ]
-            : []
+            : [],
         ),
         Array.from({ length: randomInt(0, 5) }, () => faker.image.url()),
         randomFloat(0, 5, 2),
@@ -1316,7 +1318,7 @@ async function seedProducts(
         `'${name.toLowerCase()}':1`,
         validFrom,
         validUntil,
-      ]
+      ],
     );
 
     ids.push(result.rows[0].id);
@@ -1330,7 +1332,7 @@ async function seedProductReviews(
   client: Client,
   productIds: number[],
   userIds: number[],
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} product reviews...`);
   const usedPairs = new Set<string>();
@@ -1366,12 +1368,12 @@ async function seedProductReviews(
             "Durable",
           ],
           0,
-          3
+          3,
         ),
         randomSubset(
           ["Expensive", "Slow delivery", "Poor packaging", "Difficult setup"],
           0,
-          2
+          2,
         ),
         Math.random() > 0.5,
         Math.random() > 0.9,
@@ -1379,7 +1381,7 @@ async function seedProductReviews(
         randomInt(0, 10),
         Array.from({ length: randomInt(0, 3) }, () => faker.image.url()),
         JSON.stringify({ platform: randomElement(["web", "ios", "android"]) }),
-      ]
+      ],
     );
 
     created++;
@@ -1392,7 +1394,7 @@ async function seedOrders(
   client: Client,
   userIds: number[],
   productIds: number[],
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} orders...`);
   const statuses = [
@@ -1489,7 +1491,7 @@ async function seedOrders(
         createdAt.toISOString(),
         shippedAt?.toISOString() || null,
         deliveredAt?.toISOString() || null,
-      ]
+      ],
     );
 
     // Add order items
@@ -1526,7 +1528,7 @@ async function seedOrders(
             price: unitPrice,
           }),
           Math.random() > 0.9 ? faker.lorem.sentence() : null,
-        ]
+        ],
       );
     }
   }
@@ -1537,7 +1539,7 @@ async function seedOrders(
 async function seedAuditLogs(
   client: Client,
   userIds: number[],
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} audit logs...`);
   const actions = [
@@ -1587,7 +1589,7 @@ async function seedAuditLogs(
           browser: randomElement(["Chrome", "Firefox", "Safari"]),
         }),
         randomElement(severities),
-      ]
+      ],
     );
   }
 
@@ -1619,30 +1621,30 @@ async function seedGeoLocations(client: Client, count: number): Promise<void> {
         `(${x1},${y1})`,
         `{${randomFloat(-1, 1)},${randomFloat(-1, 1)},${randomFloat(
           -100,
-          100
+          100,
         )}}`,
         `[(${x1},${y1}),(${x2},${y2})]`,
         `((${Math.min(x1, x2)},${Math.min(y1, y2)}),(${Math.max(
           x1,
-          x2
+          x2,
         )},${Math.max(y1, y2)}))`,
         `[(${x1},${y1}),(${x2},${y2}),(${randomFloat(-180, 180)},${randomFloat(
           -90,
-          90
+          90,
         )})]`,
         `((${x1},${y1}),(${x2},${y2}),(${randomFloat(-180, 180)},${randomFloat(
           -90,
-          90
+          90,
         )}))`,
         `((${x1},${y1}),(${x2},${y2}),(${randomFloat(-180, 180)},${randomFloat(
           -90,
-          90
+          90,
         )}),(${x1},${y1}))`,
         `<(${x1},${y1}),${randomFloat(1, 100)}>`,
         JSON.stringify({
           type: randomElement(["city", "region", "country", "landmark"]),
         }),
-      ]
+      ],
     );
   }
 
@@ -1651,7 +1653,7 @@ async function seedGeoLocations(client: Client, count: number): Promise<void> {
 
 async function seedNetworkDevices(
   client: Client,
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} network devices...`);
   const deviceTypes = [
@@ -1714,7 +1716,7 @@ async function seedNetworkDevices(
           speed: randomElement(["100Mbps", "1Gbps", "10Gbps"]),
           vlan: randomInt(1, 100),
         }),
-      ]
+      ],
     );
   }
 
@@ -1724,7 +1726,7 @@ async function seedNetworkDevices(
 async function seedDocuments(
   client: Client,
   userIds: number[],
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} documents...`);
   const fileTypes = ["pdf", "doc", "docx", "txt", "md", "html", "json", "xml"];
@@ -1769,7 +1771,7 @@ async function seedDocuments(
         randomSubset(
           ["tutorial", "guide", "reference", "api", "example", "faq"],
           0,
-          4
+          4,
         ),
         Array.from({ length: randomInt(0, 3) }, () => randomInt(1, 100)),
         JSON.stringify({
@@ -1779,7 +1781,7 @@ async function seedDocuments(
         isPublished ? faker.date.past({ years: 1 }).toISOString() : null,
         randomElement(userIds),
         randomInt(1, 10),
-      ]
+      ],
     );
   }
 
@@ -1788,7 +1790,7 @@ async function seedDocuments(
 
 async function seedTimeSeriesData(
   client: Client,
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} time series records...`);
   const sensors = Array.from({ length: 10 }, (_, i) => `sensor-${i + 1}`);
@@ -1839,7 +1841,7 @@ async function seedTimeSeriesData(
           location: faker.location.city(),
           floor: randomInt(1, 10),
         }),
-      ]
+      ],
     );
   }
 
@@ -1848,7 +1850,7 @@ async function seedTimeSeriesData(
 
 async function seedConfigSettings(
   client: Client,
-  count: number
+  count: number,
 ): Promise<void> {
   log(`Seeding ${count} config settings...`);
   const categories = [
@@ -1929,7 +1931,7 @@ async function seedConfigSettings(
         Math.random() > 0.8,
         JSON.stringify({ required: true }),
         JSON.stringify({ updated_by: "system" }),
-      ]
+      ],
     );
   }
 
@@ -1969,7 +1971,7 @@ async function seedConfigSettings(
         randomElement(categories),
         false,
         false,
-      ]
+      ],
     );
   }
 
@@ -2030,24 +2032,24 @@ async function seedTypeShowcase(client: Client, count: number): Promise<void> {
         `(${randomFloat(-180, 180)},${randomFloat(-90, 90)})`, // point
         `{${randomFloat(-1, 1)},${randomFloat(-1, 1)},${randomFloat(
           -100,
-          100
+          100,
         )}}`, // line
         `[(${randomFloat(-10, 10)},${randomFloat(-10, 10)}),(${randomFloat(
           -10,
-          10
+          10,
         )},${randomFloat(-10, 10)})]`, // lseg
         `((${randomFloat(-10, 0)},${randomFloat(-10, 0)}),(${randomFloat(
           0,
-          10
+          10,
         )},${randomFloat(0, 10)}))`, // box
         `[(${randomFloat(-10, 10)},${randomFloat(-10, 10)}),(${randomFloat(
           -10,
-          10
+          10,
         )},${randomFloat(-10, 10)})]`, // path
         `((0,0),(1,0),(1,1),(0,1))`, // polygon
         `<(${randomFloat(-100, 100)},${randomFloat(-100, 100)}),${randomFloat(
           1,
-          50
+          50,
         )}>`, // circle
         `192.168.${randomInt(0, 255)}.0/24`, // cidr
         generateIPv4(), // inet
@@ -2077,7 +2079,7 @@ async function seedTypeShowcase(client: Client, count: number): Promise<void> {
           future.toISOString().split("T")[0]
         }]`, // daterange
         randomElement(roles), // enum
-      ]
+      ],
     );
   }
 
@@ -2093,7 +2095,7 @@ async function main() {
   console.log("PostgreSQL Seed Script for Waterfowl");
   console.log("=".repeat(60));
   console.log(
-    `Connection: ${CONFIG.connectionString.replace(/:[^:@]+@/, ":****@")}`
+    `Connection: ${CONFIG.connectionString.replace(/:[^:@]+@/, ":****@")}`,
   );
   console.log(`Record count: ${CONFIG.recordCount}`);
   console.log("=".repeat(60));
@@ -2127,12 +2129,12 @@ async function main() {
 
     const categoryIds = await seedCategories(
       client,
-      Math.ceil(CONFIG.recordCount / 5)
+      Math.ceil(CONFIG.recordCount / 5),
     );
     const productIds = await seedProducts(
       client,
       categoryIds,
-      CONFIG.recordCount
+      CONFIG.recordCount,
     );
 
     await seedProductReviews(client, productIds, userIds, CONFIG.recordCount);
@@ -2140,7 +2142,7 @@ async function main() {
       client,
       userIds,
       productIds,
-      Math.ceil(CONFIG.recordCount / 2)
+      Math.ceil(CONFIG.recordCount / 2),
     );
     await seedAuditLogs(client, userIds, CONFIG.recordCount * 3);
 
