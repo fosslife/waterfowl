@@ -16,23 +16,20 @@ import {
   SelectionActions,
   CellActions,
   formatAsSqlLiteral,
-} from "../components/ui/DataTable";
-import { TabBar } from "../components/ui/TabBar";
-import { Button } from "../components/ui/Button";
-import { ConfirmDialog } from "../components/ui/ConfirmDialog";
-import { SchemaSidebar, SchemaObjects } from "../components/SchemaSidebar";
-import {
-  DatabaseDashboard,
-  DatabaseInfo,
-} from "../components/DatabaseDashboard";
-import { SqlEditorTab } from "../components/SqlEditorTab";
-import { useConnections } from "../context/ConnectionsContext";
-import { useToast } from "../context/ToastContext";
+} from "@components/ui/data-table/DataTable";
+import { TabBar } from "@components/ui/tabs/TabBar";
+import { Button } from "@components/ui/button/Button";
+import { ConfirmDialog } from "@components/ui/dialog/ConfirmDialog";
+import { SchemaSidebar, SchemaObjects } from "@components/SchemaSidebar";
+import { DatabaseDashboard, DatabaseInfo } from "@components/DatabaseDashboard";
+import { SqlEditorTab } from "@components/SqlEditorTab";
+import { useConnections } from "@context/ConnectionsContext";
+import { useToast } from "@context/ToastContext";
 import {
   recordConnectionUsage,
   deleteConnection,
   getConnection,
-} from "../services/connections";
+} from "@services/connections";
 import {
   TabProvider,
   useTabs,
@@ -41,7 +38,7 @@ import {
   FunctionTab,
   SequenceTab,
   SqlTab,
-} from "../context/TabContext";
+} from "@context/TabContext";
 import styles from "./ConnectionDetails.module.css";
 
 interface ColumnInfo {
@@ -686,7 +683,7 @@ function ConnectionWorkspace() {
             </Button>
             <Button
               variant="ghost"
-              onClick={() => navigate(`/edit-connection/${id}`)}
+              onClick={() => navigate(`/connection/edit/${id}`)}
               className={styles.errorActionBtn}
             >
               <Edit size={14} /> Edit
@@ -774,7 +771,7 @@ function ConnectionWorkspace() {
             Close
           </button>
           <button
-            onClick={() => navigate(`/edit-connection/${id}`)}
+            onClick={() => navigate(`/connection/edit/${id}`)}
             title="Edit Connection"
             className={styles.actionBtn}
           >

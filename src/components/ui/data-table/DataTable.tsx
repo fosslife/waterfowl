@@ -1,11 +1,4 @@
-import {
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-  useEffect,
-  memo,
-} from "react";
+import { useMemo, useRef, useState, useCallback, useEffect, memo } from "react";
 import { createPortal } from "react-dom";
 import {
   Loader2,
@@ -38,7 +31,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import styles from "./DataTable.module.css";
 import { TableRow } from "./TableRow";
-import { useToast } from "../../context/ToastContext";
+import { useToast } from "@context/ToastContext";
 
 export interface PaginationState {
   page: number;
@@ -178,13 +171,10 @@ export function DataTable({
     [data.length, selectedIndices.size],
   );
 
-  const handleCellClick = useCallback(
-    (rowIndex: number, columnId: string) => {
-      setSelectedCell({ rowIndex, columnId });
-      tableContainerRef.current?.focus();
-    },
-    [],
-  );
+  const handleCellClick = useCallback((rowIndex: number, columnId: string) => {
+    setSelectedCell({ rowIndex, columnId });
+    tableContainerRef.current?.focus();
+  }, []);
 
   const clearCellSelection = useCallback(() => {
     setSelectedCell(null);
@@ -544,124 +534,129 @@ export function DataTable({
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id} style={{ width: totalTableWidth }}>
-                {selectable && (
-                  <th className={styles.checkboxCell}>
-                    <label className={styles.checkbox}>
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        ref={(el) => {
-                          if (el) el.indeterminate = isSomeSelected;
-                        }}
-                        onChange={toggleAllSelection}
-                      />
-                      <span className={styles.checkboxIndicator}>
-                        {isAllSelected ? (
-                          <Check size={12} />
-                        ) : isSomeSelected ? (
-                          <Minus size={12} />
-                        ) : null}
-                      </span>
-                    </label>
-                  </th>
-                )}
-                <th className={styles.rowIndex}>#</th>
-                {headerGroup.headers.map((header) => {
-                  const sortDirection = header.column.getIsSorted();
-                  const columnMeta = header.column.columnDef.meta as
-                    | { type: string }
-                    | undefined;
-                  const isNumericType = isNumericColumn(columnMeta?.type);
+                  {selectable && (
+                    <th className={styles.checkboxCell}>
+                      <label className={styles.checkbox}>
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isSomeSelected;
+                          }}
+                          onChange={toggleAllSelection}
+                        />
+                        <span className={styles.checkboxIndicator}>
+                          {isAllSelected ? (
+                            <Check size={12} />
+                          ) : isSomeSelected ? (
+                            <Minus size={12} />
+                          ) : null}
+                        </span>
+                      </label>
+                    </th>
+                  )}
+                  <th className={styles.rowIndex}>#</th>
+                  {headerGroup.headers.map((header) => {
+                    const sortDirection = header.column.getIsSorted();
+                    const columnMeta = header.column.columnDef.meta as
+                      | { type: string }
+                      | undefined;
+                    const isNumericType = isNumericColumn(columnMeta?.type);
 
-                  return (
-                    <th
-                      key={header.id}
-                      className={`${styles.sortableHeader} ${
-                        isNumericType ? styles.headerRight : ""
-                      }`}
-                      style={{ width: header.getSize() }}
-                    >
-                      <div
-                        className={styles.headerContent}
-                        onClick={header.column.getToggleSortingHandler()}
+                    return (
+                      <th
+                        key={header.id}
+                        className={`${styles.sortableHeader} ${
+                          isNumericType ? styles.headerRight : ""
+                        }`}
+                        style={{ width: header.getSize() }}
                       >
-                        <div>
-                          <span className={styles.columnName}>
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
+                        <div
+                          className={styles.headerContent}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          <div>
+                            <span className={styles.columnName}>
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                            </span>
+                            <span className={styles.columnType}>
+                              {columnMeta?.type || "unknown"}
+                            </span>
+                          </div>
+                          <span className={styles.sortIcon}>
+                            {sortDirection === "asc" && <ArrowUp size={12} />}
+                            {sortDirection === "desc" && (
+                              <ArrowDown size={12} />
                             )}
                           </span>
-                          <span className={styles.columnType}>
-                            {columnMeta?.type || "unknown"}
-                          </span>
                         </div>
-                        <span className={styles.sortIcon}>
-                          {sortDirection === "asc" && <ArrowUp size={12} />}
-                          {sortDirection === "desc" && <ArrowDown size={12} />}
-                        </span>
-                      </div>
-                      {/* Column resize handle */}
-                      <div
-                        onMouseDown={header.getResizeHandler()}
-                        onTouchStart={header.getResizeHandler()}
-                        className={`${styles.resizer} ${
-                          header.column.getIsResizing() ? styles.isResizing : ""
-                        }`}
-                      />
-                    </th>
-                  );
-                })}
-              </tr>
-            ))}
-          </thead>
-          <tbody
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              position: "relative",
-            }}
-          >
-            {virtualRows.map((virtualRow) => {
-              const row = rows[virtualRow.index];
-              return (
-                <TableRow
-                  key={row.id}
-                  row={row}
-                  virtualRow={virtualRow}
-                  isSelected={selectedIndices.has(virtualRow.index)}
-                  isOdd={virtualRow.index % 2 === 1}
-                  selectable={selectable}
-                  pagination={pagination}
-                  totalTableWidth={totalTableWidth}
-                  onToggleSelection={toggleRowSelection}
-                  selectedCellColumnId={
-                    selectedCell?.rowIndex === virtualRow.index
-                      ? selectedCell.columnId
-                      : null
-                  }
-                  onCellClick={handleCellClick}
-                  onCellDoubleClick={handleCellDoubleClick}
-                  onContextMenu={handleContextMenu}
-                />
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className={styles.tableFooter}>
-        {pagination ? (
-          <PaginationControls
-            pagination={pagination}
-            onPageChange={onPageChange}
-            onPageSizeChange={onPageSizeChange}
-          />
-        ) : (
-          <span className={styles.rowCount}>{data.length} rows</span>
-        )}
-      </div>
+                        {/* Column resize handle */}
+                        <div
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={`${styles.resizer} ${
+                            header.column.getIsResizing()
+                              ? styles.isResizing
+                              : ""
+                          }`}
+                        />
+                      </th>
+                    );
+                  })}
+                </tr>
+              ))}
+            </thead>
+            <tbody
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                position: "relative",
+              }}
+            >
+              {virtualRows.map((virtualRow) => {
+                const row = rows[virtualRow.index];
+                return (
+                  <TableRow
+                    key={row.id}
+                    row={row}
+                    virtualRow={virtualRow}
+                    isSelected={selectedIndices.has(virtualRow.index)}
+                    isOdd={virtualRow.index % 2 === 1}
+                    selectable={selectable}
+                    pagination={pagination}
+                    totalTableWidth={totalTableWidth}
+                    onToggleSelection={toggleRowSelection}
+                    selectedCellColumnId={
+                      selectedCell?.rowIndex === virtualRow.index
+                        ? selectedCell.columnId
+                        : null
+                    }
+                    onCellClick={handleCellClick}
+                    onCellDoubleClick={handleCellDoubleClick}
+                    onContextMenu={handleContextMenu}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className={styles.tableFooter}>
+          {pagination ? (
+            <PaginationControls
+              pagination={pagination}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
+            />
+          ) : (
+            <span className={styles.rowCount}>{data.length} rows</span>
+          )}
+        </div>
       </div>
 
-      {((selectable && selectedIndices.size > 0) || (selectedCellInfo && selectedCell)) && (
+      {((selectable && selectedIndices.size > 0) ||
+        (selectedCellInfo && selectedCell)) && (
         <div className={styles.sidebar}>
           {selectable && selectedIndices.size > 0 && (
             <SelectionSidebarPanel
@@ -689,12 +684,17 @@ export function DataTable({
               onClear={clearCellSelection}
               onEdit={
                 cellActions?.onCellUpdate
-                  ? () => startEditing(selectedCell.rowIndex, selectedCell.columnId)
+                  ? () =>
+                      startEditing(selectedCell.rowIndex, selectedCell.columnId)
                   : undefined
               }
               onSetNull={
                 cellActions?.onCellUpdate
-                  ? () => handleSetNull(selectedCell.rowIndex, selectedCell.columnId)
+                  ? () =>
+                      handleSetNull(
+                        selectedCell.rowIndex,
+                        selectedCell.columnId,
+                      )
                   : undefined
               }
               onCopyAsInsert={
@@ -702,8 +702,16 @@ export function DataTable({
                   ? () => copyAsInsert(selectedCell.rowIndex)
                   : undefined
               }
-              isEditing={editingCell?.rowIndex === selectedCell.rowIndex && editingCell?.columnId === selectedCell.columnId}
-              editValue={editingCell?.rowIndex === selectedCell.rowIndex && editingCell?.columnId === selectedCell.columnId ? editingCell?.value : undefined}
+              isEditing={
+                editingCell?.rowIndex === selectedCell.rowIndex &&
+                editingCell?.columnId === selectedCell.columnId
+              }
+              editValue={
+                editingCell?.rowIndex === selectedCell.rowIndex &&
+                editingCell?.columnId === selectedCell.columnId
+                  ? editingCell?.value
+                  : undefined
+              }
               onEditChange={handleEditChange}
               onEditConfirm={handleEditConfirm}
               onEditCancel={handleEditCancel}
@@ -741,10 +749,7 @@ export function DataTable({
             onEdit={
               cellActions?.onCellUpdate
                 ? () => {
-                    startEditing(
-                      contextMenu.rowIndex,
-                      contextMenu.columnId,
-                    );
+                    startEditing(contextMenu.rowIndex, contextMenu.columnId);
                     closeContextMenu();
                   }
                 : undefined
@@ -752,10 +757,7 @@ export function DataTable({
             onSetNull={
               cellActions?.onCellUpdate
                 ? () => {
-                    handleSetNull(
-                      contextMenu.rowIndex,
-                      contextMenu.columnId,
-                    );
+                    handleSetNull(contextMenu.rowIndex, contextMenu.columnId);
                     closeContextMenu();
                   }
                 : undefined
@@ -859,7 +861,7 @@ const CellSidebarPanel = memo(function CellSidebarPanel({
       inputRef.current.focus();
       inputRef.current.setSelectionRange(
         inputRef.current.value.length,
-        inputRef.current.value.length
+        inputRef.current.value.length,
       );
     }
   }, [isEditing]);
@@ -890,26 +892,26 @@ const CellSidebarPanel = memo(function CellSidebarPanel({
           <X size={14} />
         </button>
       </div>
-      
+
       <div className={styles.sidebarValueContainer}>
-         {isEditing && editValue !== undefined ? (
-           <textarea
-             ref={inputRef}
-             className={styles.sidebarEditorInput}
-             value={editValue}
-             onChange={(e) => onEditChange?.(e.target.value)}
-             onKeyDown={(e) => {
-               e.stopPropagation();
-               if (e.key === "Enter" && !e.shiftKey) {
-                 e.preventDefault();
-                 onEditConfirm?.();
-               }
-               if (e.key === "Escape") onEditCancel?.();
-             }}
-           />
-         ) : (
-           <pre className={styles.sidebarPreValue}>{displayValue}</pre>
-         )}
+        {isEditing && editValue !== undefined ? (
+          <textarea
+            ref={inputRef}
+            className={styles.sidebarEditorInput}
+            value={editValue}
+            onChange={(e) => onEditChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onEditConfirm?.();
+              }
+              if (e.key === "Escape") onEditCancel?.();
+            }}
+          />
+        ) : (
+          <pre className={styles.sidebarPreValue}>{displayValue}</pre>
+        )}
       </div>
 
       <div className={styles.sidebarActions}>
@@ -1128,9 +1130,7 @@ const ContextMenu = memo(function ContextMenu({
           <span>Copy as INSERT</span>
         </button>
       )}
-      {(onEdit || onSetNull) && (
-        <div className={styles.contextMenuDivider} />
-      )}
+      {(onEdit || onSetNull) && <div className={styles.contextMenuDivider} />}
       {onEdit && (
         <button className={styles.contextMenuItem} onClick={onEdit}>
           <Pencil size={14} />

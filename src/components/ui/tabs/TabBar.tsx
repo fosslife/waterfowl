@@ -1,5 +1,14 @@
-import { X, Table, Terminal, LayoutDashboard, Eye, Code2, Hash, Database } from "lucide-react";
-import { Tab, TabType } from "../../context/TabContext";
+import {
+  X,
+  Table,
+  Terminal,
+  LayoutDashboard,
+  Eye,
+  Code2,
+  Hash,
+  Database,
+} from "lucide-react";
+import { Tab, TabType } from "../../../context/TabContext";
 import styles from "./TabBar.module.css";
 import clsx from "clsx";
 
@@ -39,7 +48,7 @@ export function TabBar({
             key={tab.id}
             className={clsx(
               styles.tab,
-              tab.id === activeTabId && styles.active
+              tab.id === activeTabId && styles.active,
             )}
             onClick={() => onTabClick(tab.id)}
             title={tab.title}

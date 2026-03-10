@@ -1,4 +1,4 @@
-import { Button } from "../components/ui/Button";
+import { Button } from "../components/ui/button/Button";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
@@ -106,7 +106,7 @@ export function Welcome() {
                 <ConnectionCard key={conn.id} connection={conn} />
               ))}
             </div>
-            <Link to="/new-connection" className={styles.newConnectionLink}>
+            <Link to="/connection/new" className={styles.newConnectionLink}>
               <div className={styles.newConnectionCard}>
                 <div className={styles.newConnectionIcon}>
                   <Plus size={20} />
@@ -187,7 +187,7 @@ function FirstTimeExperience() {
           <FeaturePill icon={<Terminal size={14} />} text="Raw SQL Access" />
         </div>
 
-        <Link to="/new-connection">
+        <Link to="/connection/new">
           <Button size="lg">Create First Connection</Button>
         </Link>
 

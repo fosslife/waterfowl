@@ -1,16 +1,13 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { MoveLeft, Database, Server, Key, Zap } from "lucide-react";
-import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { FormSkeleton } from "../components/ui/Skeleton";
-import { useConnections } from "../context/ConnectionsContext";
-import { useToast } from "../context/ToastContext";
+import { Button } from "@components/ui/button/Button";
+import { Input } from "@components/ui/input/Input";
+import { FormSkeleton } from "@components/ui/skeleton/Skeleton";
+import { useConnections } from "@context/ConnectionsContext";
+import { useToast } from "@context/ToastContext";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  saveConnection,
-  getConnection,
-} from "../services/connections";
+import { saveConnection, getConnection } from "@services/connections";
 import styles from "./NewConnection.module.css";
 
 export function NewConnection() {
@@ -76,7 +73,7 @@ export function NewConnection() {
         },
       });
       toast.success(
-        `Successfully connected to ${formData.host}:${formData.port}/${formData.database}`
+        `Successfully connected to ${formData.host}:${formData.port}/${formData.database}`,
       );
     } catch (error: any) {
       toast.error(`Connection failed: ${error}`);
@@ -102,7 +99,9 @@ export function NewConnection() {
       });
       await refreshConnections();
       toast.success(
-        id ? "Connection updated successfully" : "Connection saved successfully"
+        id
+          ? "Connection updated successfully"
+          : "Connection saved successfully",
       );
       navigate("/");
     } catch (error: any) {

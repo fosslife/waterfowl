@@ -12,7 +12,7 @@ import clsx from "clsx";
 import { useConnections } from "../context/ConnectionsContext";
 import styles from "./AppLayout.module.css";
 
-const HOVER_DELAY_MS = 300;
+const HOVER_DELAY_MS = 400;
 
 export function AppLayout() {
   const { connections } = useConnections();
@@ -72,7 +72,7 @@ export function AppLayout() {
         className={clsx(
           styles.sidebar,
           isCollapsed && styles.collapsed,
-          isCollapsed && isHovered && styles.hoveredOpen
+          isCollapsed && isHovered && styles.hoveredOpen,
         )}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -110,7 +110,7 @@ export function AppLayout() {
           )}
 
           <NavLink
-            to="/new-connection"
+            to="/connection/new"
             className={({ isActive }) =>
               clsx(styles.navItem, styles.addNew, isActive && styles.active)
             }
@@ -149,7 +149,7 @@ export function AppLayout() {
                   clsx(
                     styles.navItem,
                     styles.connectionItem,
-                    isActive && styles.active
+                    isActive && styles.active,
                   )
                 }
                 title={
@@ -164,7 +164,7 @@ export function AppLayout() {
                     size={6}
                     className={clsx(
                       styles.statusDot,
-                      activeConnectionId === conn.id && styles.statusConnected
+                      activeConnectionId === conn.id && styles.statusConnected,
                     )}
                   />
                 </div>
@@ -193,7 +193,7 @@ export function AppLayout() {
       <main
         className={clsx(
           styles.content,
-          isCollapsed && styles.contentWithCollapsedSidebar
+          isCollapsed && styles.contentWithCollapsedSidebar,
         )}
       >
         <Outlet />

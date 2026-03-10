@@ -18,8 +18,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { SqlEditor, SqlEditorRef, SchemaCompletionData } from "./sql-editor";
-import { DataTable } from "./ui/DataTable";
-import { Button } from "./ui/Button";
+import { DataTable } from "./ui/data-table/DataTable";
+import { Button } from "./ui/button/Button";
 import { useToast } from "../context/ToastContext";
 import { QueryResult, QueryHistoryItem } from "../types/sql";
 import styles from "./SqlEditorTab.module.css";
@@ -52,7 +52,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
       onExecutingChange,
       showExecuteButton = true,
     },
-    ref
+    ref,
   ) {
     const toast = useToast();
     const editorRef = useRef<SqlEditorRef>(null);
@@ -63,7 +63,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
     const [result, setResult] = useState<QueryResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [schemaData, setSchemaData] = useState<SchemaCompletionData | null>(
-      null
+      null,
     );
     const [history, setHistory] = useState<QueryHistoryItem[]>([]);
     const [activeSchema] = useState("public");
@@ -74,7 +74,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
         setIsExecuting(value);
         onExecutingChange?.(value);
       },
-      [onExecutingChange]
+      [onExecutingChange],
     );
 
     // Load schema data for autocomplete
@@ -141,7 +141,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
           ]);
 
           toast.success(
-            `Query executed: ${queryResult.rows.length} rows in ${queryResult.execution_time_ms}ms`
+            `Query executed: ${queryResult.rows.length} rows in ${queryResult.execution_time_ms}ms`,
           );
         } catch (e: any) {
           const errorMessage = e.toString();
@@ -165,7 +165,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
           updateIsExecuting(false);
         }
       },
-      [connectionId, toast, updateIsExecuting]
+      [connectionId, toast, updateIsExecuting],
     );
 
     const handleExecute = useCallback(() => {
@@ -180,7 +180,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
         execute: handleExecute,
         getQuery: () => query,
       }),
-      [handleExecute, query]
+      [handleExecute, query],
     );
 
     const handleQueryChange = useCallback(
@@ -188,7 +188,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
         setQuery(newQuery);
         onQueryChange?.(newQuery);
       },
-      [onQueryChange]
+      [onQueryChange],
     );
 
     const handleHistoryClick = useCallback((item: QueryHistoryItem) => {
@@ -215,7 +215,7 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
             if (typeof val === "object") return JSON.stringify(val);
             return String(val);
           })
-          .join("\t")
+          .join("\t"),
       );
 
       const tsv = [headerLine, ...dataLines].join("\n");
@@ -394,5 +394,5 @@ export const SqlEditorTab = forwardRef<SqlEditorTabRef, SqlEditorTabProps>(
         </aside>
       </div>
     );
-  }
+  },
 );

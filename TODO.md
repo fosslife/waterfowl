@@ -1,8 +1,8 @@
 ~~Cell selection & copy — Click a cell to select, Ctrl+C to copy value~~
 Row selection — bulk export
 ~~Context menu — Right-click for Copy, Copy Row, Copy as INSERT, etc.~~
-Column resizing — Drag column borders to resize
-Cell expansion — Click/hover to see full content for truncated text/JSON
+~~Column resizing — Drag column borders to resize~~
+~~Cell expansion — Click/hover to see full content for truncated text/JSON~~
 ~~Keyboard navigation — Arrow keys to move between cells~~
 Medium Priority:
 Filtering — Per-column filters (especially useful for VARCHAR/text)

@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useState, useRef } from "react";
 import { Play, ArrowLeft, Database } from "lucide-react";
 import { SqlEditorTab, SqlEditorTabRef } from "../components/SqlEditorTab";
-import { Button } from "../components/ui/Button";
+import { Button } from "../components/ui/button/Button";
 import { useConnections } from "../context/ConnectionsContext";
 import styles from "./SqlEditorPage.module.css";
 

@@ -9,7 +9,7 @@ import {
   ToastContainer,
   ToastData,
   ToastVariant,
-} from "../components/ui/Toast";
+} from "../components/ui/toast/Toast";
 
 interface ToastContextType {
   toast: (message: string, variant?: ToastVariant, duration?: number) => void;
@@ -35,42 +35,42 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       const id = `toast-${++toastId}`;
       setToasts((prev) => [...prev, { id, message, variant, duration }]);
     },
-    []
+    [],
   );
 
   const toast = useCallback(
     (message: string, variant: ToastVariant = "info", duration?: number) => {
       addToast(message, variant, duration);
     },
-    [addToast]
+    [addToast],
   );
 
   const success = useCallback(
     (message: string, duration?: number) => {
       addToast(message, "success", duration);
     },
-    [addToast]
+    [addToast],
   );
 
   const error = useCallback(
     (message: string, duration?: number) => {
       addToast(message, "error", duration ?? 6000); // Errors stay longer
     },
-    [addToast]
+    [addToast],
   );
 
   const warning = useCallback(
     (message: string, duration?: number) => {
       addToast(message, "warning", duration);
     },
-    [addToast]
+    [addToast],
   );
 
   const info = useCallback(
     (message: string, duration?: number) => {
       addToast(message, "info", duration);
     },
-    [addToast]
+    [addToast],
   );
 
   return (
