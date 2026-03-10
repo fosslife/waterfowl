@@ -15,7 +15,6 @@ import {
   PaginationState,
   SelectionActions,
   CellActions,
-  formatAsSqlLiteral,
 } from "@components/ui/data-table/DataTable";
 import { TabBar } from "@components/ui/tabs/TabBar";
 import { Button } from "@components/ui/button/Button";
@@ -40,6 +39,7 @@ import {
   SqlTab,
 } from "@context/TabContext";
 import styles from "./ConnectionDetails.module.css";
+import { formatAsSqlLiteral } from "@utils/sql";
 
 interface ColumnInfo {
   name: string;
