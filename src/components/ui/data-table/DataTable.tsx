@@ -31,6 +31,13 @@ import { SelectionSidebarPanel } from "./SelectionSidebar";
 import { PaginationControls } from "./Pagination";
 import { CellSidebarPanel } from "./CellSidebarPanel";
 import { ContextMenu } from "./ContextMenu";
+import {
+  FilterCell,
+  FilterBar,
+  useColumnFilters,
+  type ColumnFilter,
+} from "./ColumnFilter";
+import filterStyles from "./ColumnFilter/ColumnFilter.module.css";
 
 export interface PaginationState {
   page: number;
@@ -62,6 +69,11 @@ export interface ColumnInfo {
   ordinal_position?: number;
 }
 
+export interface FilterActions {
+  onFiltersChange: (filters: ColumnFilter[]) => void;
+  enumValues?: Record<string, string[]>;
+}
+
 interface DataTableProps {
   data: Record<string, any>[];
   columnInfo?: ColumnInfo[];
@@ -75,6 +87,7 @@ interface DataTableProps {
   cellActions?: CellActions;
   tableName?: string;
   schemaName?: string;
+  filterActions?: FilterActions;
 }
 
 export function DataTable({
@@ -90,6 +103,7 @@ export function DataTable({
   cellActions,
   tableName,
   schemaName,
+  filterActions,
 }: DataTableProps) {
   const toastContext = useToast();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -109,7 +123,20 @@ export function DataTable({
     columnId: string;
     value: string;
   } | null>(null);
+  const [filtersVisible, setFiltersVisible] = useState(false);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    filterInputs,
+    setFilterValue,
+    setFilterOperator,
+    clearFilter,
+    clearAllFilters,
+    activeFilterCount,
+  } = useColumnFilters({
+    onFiltersChange: filterActions?.onFiltersChange ?? (() => {}),
+    debounceMs: 300,
+  });
 
   useEffect(() => {
     setSelectedIndices(new Set());
@@ -203,29 +230,45 @@ export function DataTable({
 
   // Generate columns dynamically - use columnInfo order if available (pre-sorted by ordinal_position)
   const columns = useMemo<ColumnDef<Record<string, any>>[]>(() => {
+    // Prefer columnInfo if available
+    if (columnInfo && columnInfo.length > 0) {
+      const keys = columnInfo.map((col) => col.name);
+      return keys.map((key) => {
+        const type = columnTypeMap[key];
+        return {
+          accessorKey: key,
+          header: key,
+          cell: ({ getValue }) => {
+            const value = getValue();
+            return formatValue(value);
+          },
+          size: 150, // Default column width
+          minSize: 50,
+          maxSize: 500,
+          meta: { type: type || "unknown" }, // Pass original PG type down
+        };
+      });
+    }
+
+    // Fall back to inferring from data
     if (data.length === 0) return [];
+    const keys = Object.keys(data[0]);
 
-    // Use columnInfo order if available, otherwise fall back to Object.keys
-    const keys =
-      columnInfo && columnInfo.length > 0
-        ? columnInfo.map((col) => col.name)
-        : Object.keys(data[0]);
-
-    return keys.map((key) => ({
-      accessorKey: key,
-      header: key,
-      cell: ({ getValue }) => {
-        const value = getValue();
-        return formatValue(value);
-      },
-      size: 150, // Default column width
-      minSize: 50,
-      maxSize: 500,
-      meta: {
-        // Use PostgreSQL type from metadata if available, otherwise infer
-        type: columnTypeMap[key] || inferType(data, key),
-      },
-    }));
+    return keys.map((key) => {
+      const type = inferType(data, key);
+      return {
+        accessorKey: key,
+        header: key,
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return formatValue(value);
+        },
+        size: 150, // Default column width
+        minSize: 50,
+        maxSize: 500,
+        meta: { type }, // Store inferred type in meta
+      };
+    });
   }, [data, columnInfo, columnTypeMap]);
 
   const columnIds = useMemo(
@@ -491,7 +534,7 @@ export function DataTable({
     return () => clearTimeout(timer);
   }, [selectedCell]);
 
-  if (isLoading) {
+  if (isLoading && data.length === 0) {
     return (
       <div className={styles.loadingState}>
         <div className={styles.loadingSpinner}>
@@ -499,15 +542,6 @@ export function DataTable({
           <div className={styles.scanLine} />
         </div>
         <span className={styles.loadingText}>Fetching records...</span>
-      </div>
-    );
-  }
-
-  if (data.length === 0) {
-    return (
-      <div className={styles.emptyState}>
-        <Database size={32} className={styles.emptyIcon} />
-        <span className={styles.emptyText}>{emptyMessage}</span>
       </div>
     );
   }
@@ -605,16 +639,63 @@ export function DataTable({
                   })}
                 </tr>
               ))}
+              {filtersVisible && filterActions && (
+                <tr style={{ width: totalTableWidth }}>
+                  {selectable && (
+                    <th className={filterStyles.filterRowPlaceholder} />
+                  )}
+                  <th className={filterStyles.filterRowPlaceholder} />
+                  {table.getHeaderGroups()[0]?.headers.map((header) => {
+                    const columnMeta = header.column.columnDef.meta as
+                      | { type: string }
+                      | undefined;
+                    const pgType = columnMeta?.type ?? "unknown";
+                    const colId = (
+                      header.column.columnDef as { accessorKey: string }
+                    ).accessorKey;
+                    const filterInput = filterInputs[colId];
+
+                    return (
+                      <th
+                        key={`filter-${header.id}`}
+                        className={filterStyles.filterCell}
+                        style={{ width: header.getSize() }}
+                      >
+                        <FilterCell
+                          column={colId}
+                          pgType={pgType}
+                          value={filterInput?.value}
+                          operator={filterInput?.operator}
+                          onValueChange={setFilterValue}
+                          onOperatorChange={setFilterOperator}
+                          onClear={clearFilter}
+                          enumValues={filterActions.enumValues?.[colId]}
+                        />
+                      </th>
+                    );
+                  })}
+                </tr>
+              )}
             </thead>
             <tbody
               style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
+                height: data.length === 0 ? "100%" : `${rowVirtualizer.getTotalSize()}px`,
                 position: "relative",
               }}
             >
-              {virtualRows.map((virtualRow) => {
-                const row = rows[virtualRow.index];
-                return (
+              {data.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length + (selectable ? 1 : 0) + 1} style={{ padding: "40px" }}>
+                    <div className={styles.emptyState}>
+                      <Database size={32} className={styles.emptyIcon} />
+                      <span className={styles.emptyText}>{emptyMessage}</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                virtualRows.map((virtualRow) => {
+                  const row = rows[virtualRow.index];
+                  return (
                   <TableRow
                     key={row.id}
                     row={row}
@@ -635,11 +716,20 @@ export function DataTable({
                     onContextMenu={handleContextMenu}
                   />
                 );
-              })}
+              })
+              )}
             </tbody>
           </table>
         </div>
         <div className={styles.tableFooter}>
+          {filterActions && (
+            <FilterBar
+              visible={filtersVisible}
+              activeCount={activeFilterCount}
+              onToggle={() => setFiltersVisible((v) => !v)}
+              onClearAll={clearAllFilters}
+            />
+          )}
           {pagination ? (
             <PaginationControls
               pagination={pagination}

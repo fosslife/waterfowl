@@ -8,8 +8,9 @@ use sqlx::Row;
 
 use crate::drivers::DatabaseDriver;
 use crate::types::{
-    ColumnInfo, ConnectionConfig, DatabaseInfo, FunctionInfo, IndexInfo, PaginatedTableData,
-    QueryResult, SchemaObject, SchemaObjects, SequenceInfo, TableColumn, TableStructure,
+    ColumnFilter, ColumnInfo, ConnectionConfig, DatabaseInfo, EnumValues, FilterOperator,
+    FunctionInfo, IndexInfo, PaginatedTableData, QueryResult, SchemaObject, SchemaObjects,
+    SequenceInfo, TableColumn, TableStructure,
 };
 
 /// PostgreSQL driver wrapping a connection pool.
@@ -646,6 +647,218 @@ impl DatabaseDriver for PostgresDriver {
                 .unwrap_or_else(|_| "Unknown".to_string()),
             description: stats_row.try_get("description").ok(),
         })
+    }
+
+    async fn get_filtered_table_data(
+        &self,
+        table: &str,
+        schema: &str,
+        limit: i64,
+        offset: i64,
+        filters: &[ColumnFilter],
+    ) -> Result<PaginatedTableData, String> {
+        // Sanitize table and schema names
+        if !table.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err("Invalid table name".to_string());
+        }
+        if !schema.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            return Err("Invalid schema name".to_string());
+        }
+
+        // Fetch column metadata
+        let column_rows = sqlx::query(
+            r#"
+            SELECT column_name, udt_name, ordinal_position
+            FROM information_schema.columns
+            WHERE table_schema = $1 AND table_name = $2
+            ORDER BY ordinal_position
+            "#,
+        )
+        .bind(schema)
+        .bind(table)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let ordered_columns: Vec<ColumnInfo> = column_rows
+            .iter()
+            .map(|r| {
+                let name: String = r.get("column_name");
+                let data_type: String = r.get("udt_name");
+                let ordinal: i32 = r.get("ordinal_position");
+                ColumnInfo {
+                    name,
+                    data_type: data_type.to_uppercase(),
+                    ordinal_position: Some(ordinal),
+                }
+            })
+            .collect();
+
+        // Build valid column name set for validation
+        let valid_columns: std::collections::HashSet<&str> =
+            ordered_columns.iter().map(|c| c.name.as_str()).collect();
+
+        // Build WHERE clause from filters using parameterized queries
+        let mut where_clauses: Vec<String> = Vec::new();
+        let mut bind_values: Vec<String> = Vec::new();
+        let mut param_index: usize = 1; // Parameters start at $1 (schema/table are string-interpolated, not bound)
+
+        for filter in filters {
+            // Validate column name against schema
+            if !valid_columns.contains(filter.column.as_str()) {
+                continue; // Skip invalid column names silently
+            }
+
+            let col_quoted = format!("\"{}\"", filter.column);
+
+            match filter.operator {
+                FilterOperator::IsNull => {
+                    where_clauses.push(format!("{} IS NULL", col_quoted));
+                }
+                FilterOperator::IsNotNull => {
+                    where_clauses.push(format!("{} IS NOT NULL", col_quoted));
+                }
+                FilterOperator::Equals => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses.push(format!("{}::text = ${}", col_quoted, param_index));
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::NotEquals => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses.push(format!("{}::text != ${}", col_quoted, param_index));
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::Contains => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses
+                            .push(format!("{}::text ILIKE ${}", col_quoted, param_index));
+                        bind_values.push(format!("%{}%", val));
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::StartsWith => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses
+                            .push(format!("{}::text ILIKE ${}", col_quoted, param_index));
+                        bind_values.push(format!("{}%", val));
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::EndsWith => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses
+                            .push(format!("{}::text ILIKE ${}", col_quoted, param_index));
+                        bind_values.push(format!("%{}", val));
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::GreaterThan => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses.push(format!("{}::text > ${}", col_quoted, param_index));
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::LessThan => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses.push(format!("{}::text < ${}", col_quoted, param_index));
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::GreaterThanOrEqual => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses.push(format!("{}::text >= ${}", col_quoted, param_index));
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::LessThanOrEqual => {
+                    if let Some(ref val) = filter.value {
+                        where_clauses.push(format!("{}::text <= ${}", col_quoted, param_index));
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
+            }
+        }
+
+        let where_sql = if where_clauses.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", where_clauses.join(" AND "))
+        };
+
+        let qualified_table = format!("\"{}\".\"{}\"", schema, table);
+
+        // Get filtered count
+        let count_sql = format!("SELECT COUNT(*) FROM {}{}", qualified_table, where_sql);
+        let mut count_query = sqlx::query(&count_sql);
+        for val in &bind_values {
+            count_query = count_query.bind(val);
+        }
+        let count_row = count_query
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        let total_count: i64 = count_row.get(0);
+
+        // Fetch filtered paginated data
+        let data_sql = format!(
+            "SELECT * FROM {}{} LIMIT {} OFFSET {}",
+            qualified_table, where_sql, limit, offset
+        );
+        let mut data_query = sqlx::query(&data_sql);
+        for val in &bind_values {
+            data_query = data_query.bind(val);
+        }
+        let rows = data_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let (results, columns_info) = decode::decode_rows(&rows, Some(ordered_columns));
+
+        Ok(PaginatedTableData {
+            rows: results,
+            total_count,
+            columns: columns_info,
+        })
+    }
+
+    async fn get_enum_values(
+        &self,
+        table: &str,
+        column: &str,
+        schema: &str,
+    ) -> Result<EnumValues, String> {
+        // Query pg_enum to get enum labels for the type used by this column
+        let rows = sqlx::query(
+            r#"
+            SELECT e.enumlabel
+            FROM pg_enum e
+            JOIN pg_type t ON e.enumtypid = t.oid
+            JOIN pg_attribute a ON a.atttypid = t.oid
+            JOIN pg_class c ON a.attrelid = c.oid
+            JOIN pg_namespace n ON c.relnamespace = n.oid
+            WHERE c.relname = $1 AND a.attname = $2 AND n.nspname = $3
+            ORDER BY e.enumsortorder
+            "#,
+        )
+        .bind(table)
+        .bind(column)
+        .bind(schema)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        let values: Vec<String> = rows.iter().map(|r| r.get("enumlabel")).collect();
+
+        Ok(EnumValues { values })
     }
 
     async fn execute_query(&self, query: &str) -> Result<QueryResult, String> {

@@ -1,11 +1,14 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   DataTable,
   PaginationState,
   SelectionActions,
   CellActions,
+  FilterActions,
 } from "@components/ui/data-table/DataTable";
+import type { ColumnFilter } from "@components/ui/data-table/ColumnFilter/types";
+import { getFilterCategory } from "@components/ui/data-table/ColumnFilter/types";
 import { ConfirmDialog } from "@components/ui/dialog/ConfirmDialog";
 import { useToast } from "@context/ToastContext";
 import { TableTab } from "@context/TabContext";
@@ -42,6 +45,10 @@ export interface TableStructure {
   description: string | null;
 }
 
+interface EnumValues {
+  values: string[];
+}
+
 const DEFAULT_PAGE_SIZE = 100;
 
 interface TablePanelProps {
@@ -61,10 +68,52 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
     totalCount: 0,
   });
 
+  // Filter state
+  const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
+  const [enumValuesMap, setEnumValuesMap] = useState<
+    Record<string, string[]>
+  >({});
+  const fetchIdRef = useRef(0); // Track latest fetch to discard stale results
+
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
     rows: Record<string, any>[];
   }>({ isOpen: false, rows: [] });
+
+  // Fetch enum values for columns that look like enums
+  const fetchEnumValues = useCallback(
+    async (columns: ColumnInfo[]) => {
+      const enumColumns = columns.filter(
+        (col) => getFilterCategory(col.pg_type) === "enum",
+      );
+
+      if (enumColumns.length === 0) return;
+
+      const results: Record<string, string[]> = {};
+
+      // Fetch in parallel but with concurrency — limit to avoid overwhelming
+      await Promise.all(
+        enumColumns.map(async (col) => {
+          try {
+            const result = await invoke<EnumValues>("get_enum_values", {
+              id: connectionId,
+              table: tab.tableName,
+              column: col.name,
+              schema: tab.schema,
+            });
+            if (result.values.length > 0) {
+              results[col.name] = result.values;
+            }
+          } catch {
+            // Silently skip — column will fall back to generic filter
+          }
+        }),
+      );
+
+      setEnumValuesMap(results);
+    },
+    [connectionId, tab.tableName, tab.schema],
+  );
 
   const fetchTableData = useCallback(
     async (
@@ -72,18 +121,31 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
       schema: string,
       page: number,
       pageSize: number,
+      filters: ColumnFilter[] = [],
     ) => {
+      const fetchId = ++fetchIdRef.current;
       setIsDataLoading(true);
       try {
+        const useFiltered = filters.length > 0;
+
         const [result, structure] = await Promise.all([
-          invoke<PaginatedTableData>("get_table_data", {
-            id: connectionId,
-            table: tableName,
-            schema: schema,
-            limit: pageSize,
-            offset: page * pageSize,
-          }),
-          page === 0
+          useFiltered
+            ? invoke<PaginatedTableData>("get_filtered_table_data", {
+                id: connectionId,
+                table: tableName,
+                schema: schema,
+                limit: pageSize,
+                offset: page * pageSize,
+                filters: filters,
+              })
+            : invoke<PaginatedTableData>("get_table_data", {
+                id: connectionId,
+                table: tableName,
+                schema: schema,
+                limit: pageSize,
+                offset: page * pageSize,
+              }),
+          page === 0 && filters.length === 0
             ? invoke<TableStructure>("get_table_structure", {
                 id: connectionId,
                 table: tableName,
@@ -91,6 +153,10 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
               })
             : null,
         ]);
+
+        // Discard results from stale requests
+        if (fetchId !== fetchIdRef.current) return;
+
         setTableData(result.rows);
         setColumnInfo(result.columns || []);
         setPagination((prev) => ({
@@ -107,10 +173,14 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
           );
         }
       } catch (e: any) {
+        // Discard errors from stale requests
+        if (fetchId !== fetchIdRef.current) return;
         console.error(e);
         toast.error(`Failed to load table data: ${e}`);
       } finally {
-        setIsDataLoading(false);
+        if (fetchId === fetchIdRef.current) {
+          setIsDataLoading(false);
+        }
       }
     },
     [connectionId, toast],
@@ -118,15 +188,63 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
 
   useEffect(() => {
     fetchTableData(tab.tableName, tab.schema, 0, pagination.pageSize);
-  }, [connectionId, tab.tableName, tab.schema, fetchTableData]); // Depend on tab explicitly, omitting pagination.pageSize from exhaustive deps or fetching on mount only
+  }, [connectionId, tab.tableName, tab.schema, fetchTableData]);
 
-  const handlePageChange = (newPage: number) => {
-    fetchTableData(tab.tableName, tab.schema, newPage, pagination.pageSize);
-  };
+  // Fetch enum values when columnInfo changes
+  useEffect(() => {
+    if (columnInfo.length > 0) {
+      fetchEnumValues(columnInfo);
+    }
+  }, [columnInfo, fetchEnumValues]);
 
-  const handlePageSizeChange = (newPageSize: number) => {
-    fetchTableData(tab.tableName, tab.schema, 0, newPageSize);
-  };
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      fetchTableData(
+        tab.tableName,
+        tab.schema,
+        newPage,
+        pagination.pageSize,
+        activeFilters,
+      );
+    },
+    [tab, pagination.pageSize, activeFilters, fetchTableData],
+  );
+
+  const handlePageSizeChange = useCallback(
+    (newPageSize: number) => {
+      fetchTableData(
+        tab.tableName,
+        tab.schema,
+        0,
+        newPageSize,
+        activeFilters,
+      );
+    },
+    [tab, activeFilters, fetchTableData],
+  );
+
+  // Handle filter changes — reset to page 0 and fetch with new filters
+  const handleFiltersChange = useCallback(
+    (filters: ColumnFilter[]) => {
+      setActiveFilters(filters);
+      fetchTableData(
+        tab.tableName,
+        tab.schema,
+        0,
+        pagination.pageSize,
+        filters,
+      );
+    },
+    [tab, pagination.pageSize, fetchTableData],
+  );
+
+  const filterActions: FilterActions = useMemo(
+    () => ({
+      onFiltersChange: handleFiltersChange,
+      enumValues: enumValuesMap,
+    }),
+    [handleFiltersChange, enumValuesMap],
+  );
 
   const handleCopyRows = useCallback(
     (rows: Record<string, any>[]) => {
@@ -157,9 +275,12 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
     [toast],
   );
 
-  const handleDeleteRowsRequest = useCallback((rows: Record<string, any>[]) => {
-    setDeleteConfirm({ isOpen: true, rows });
-  }, []);
+  const handleDeleteRowsRequest = useCallback(
+    (rows: Record<string, any>[]) => {
+      setDeleteConfirm({ isOpen: true, rows });
+    },
+    [],
+  );
 
   const handleDeleteRowsConfirm = useCallback(async () => {
     toast.info(
@@ -218,6 +339,7 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
           tab.schema,
           pagination.page,
           pagination.pageSize,
+          activeFilters,
         );
       } catch (e: any) {
         toast.error(`Update failed: ${e}`);
@@ -232,6 +354,7 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
       toast,
       fetchTableData,
       pagination,
+      activeFilters,
     ],
   );
 
@@ -253,8 +376,9 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
         cellActions={cellActions}
         tableName={tab.tableName}
         schemaName={tab.schema}
+        filterActions={filterActions}
       />
-      
+
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
         title="Delete Rows"

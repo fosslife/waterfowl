@@ -5,8 +5,8 @@
 use crate::drivers::DatabaseDriver;
 use crate::state::AppState;
 use crate::types::{
-    DatabaseInfo, FunctionInfo, PaginatedTableData, QueryResult, SchemaObjects, SequenceInfo,
-    TableStructure,
+    ColumnFilter, DatabaseInfo, EnumValues, FunctionInfo, PaginatedTableData, QueryResult,
+    SchemaObjects, SequenceInfo, TableStructure,
 };
 
 /// Helper to get a cloned connection from state.
@@ -143,6 +143,41 @@ pub async fn get_table_structure(
     let schema_name = schema.unwrap_or_else(|| "public".to_string());
     let conn = get_connection(&state, &id)?;
     conn.get_table_structure(&table, &schema_name).await
+}
+
+/// Get paginated data from a table with column filters applied.
+#[tauri::command]
+pub async fn get_filtered_table_data(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    table: String,
+    schema: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+    filters: Vec<ColumnFilter>,
+) -> Result<PaginatedTableData, String> {
+    let schema_name = schema.unwrap_or_else(|| "public".to_string());
+    let limit_val = limit.unwrap_or(100);
+    let offset_val = offset.unwrap_or(0);
+
+    let conn = get_connection(&state, &id)?;
+    conn.get_filtered_table_data(&table, &schema_name, limit_val, offset_val, &filters)
+        .await
+}
+
+/// Get enum values for a specific column.
+#[tauri::command]
+pub async fn get_enum_values(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    table: String,
+    column: String,
+    schema: Option<String>,
+) -> Result<EnumValues, String> {
+    let schema_name = schema.unwrap_or_else(|| "public".to_string());
+
+    let conn = get_connection(&state, &id)?;
+    conn.get_enum_values(&table, &column, &schema_name).await
 }
 
 /// Execute an arbitrary SQL query.

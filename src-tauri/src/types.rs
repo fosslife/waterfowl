@@ -163,3 +163,35 @@ pub struct TableStructure {
     pub size: String,
     pub description: Option<String>,
 }
+
+/// Filter operator for column filtering.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum FilterOperator {
+    Equals,
+    NotEquals,
+    Contains,
+    StartsWith,
+    EndsWith,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+    IsNull,
+    IsNotNull,
+}
+
+/// A single column filter sent from the frontend.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ColumnFilter {
+    pub column: String,
+    pub operator: FilterOperator,
+    /// The filter value. None for IS NULL / IS NOT NULL operators.
+    pub value: Option<String>,
+}
+
+/// Result of fetching enum values for a column.
+#[derive(Serialize)]
+pub struct EnumValues {
+    pub values: Vec<String>,
+}

@@ -10,8 +10,8 @@
 pub mod postgres;
 
 use crate::types::{
-    ConnectionConfig, DatabaseInfo, FunctionInfo, PaginatedTableData, QueryResult, SchemaObjects,
-    SequenceInfo, TableStructure,
+    ColumnFilter, ConnectionConfig, DatabaseInfo, EnumValues, FunctionInfo, PaginatedTableData,
+    QueryResult, SchemaObjects, SequenceInfo, TableStructure,
 };
 use async_trait::async_trait;
 
@@ -76,6 +76,24 @@ pub trait DatabaseDriver: Send + Sync {
         table: &str,
         schema: &str,
     ) -> Result<TableStructure, String>;
+
+    /// Get paginated data from a table with column filters applied.
+    async fn get_filtered_table_data(
+        &self,
+        table: &str,
+        schema: &str,
+        limit: i64,
+        offset: i64,
+        filters: &[ColumnFilter],
+    ) -> Result<PaginatedTableData, String>;
+
+    /// Get the allowed values for an enum type used by a column.
+    async fn get_enum_values(
+        &self,
+        table: &str,
+        column: &str,
+        schema: &str,
+    ) -> Result<EnumValues, String>;
 
     /// Execute an arbitrary SQL query.
     async fn execute_query(&self, query: &str) -> Result<QueryResult, String>;
@@ -209,6 +227,34 @@ impl DatabaseDriver for DriverConnection {
     ) -> Result<TableStructure, String> {
         match self {
             DriverConnection::Postgres(driver) => driver.get_table_structure(table, schema).await,
+        }
+    }
+
+    async fn get_filtered_table_data(
+        &self,
+        table: &str,
+        schema: &str,
+        limit: i64,
+        offset: i64,
+        filters: &[ColumnFilter],
+    ) -> Result<PaginatedTableData, String> {
+        match self {
+            DriverConnection::Postgres(driver) => {
+                driver.get_filtered_table_data(table, schema, limit, offset, filters).await
+            }
+        }
+    }
+
+    async fn get_enum_values(
+        &self,
+        table: &str,
+        column: &str,
+        schema: &str,
+    ) -> Result<EnumValues, String> {
+        match self {
+            DriverConnection::Postgres(driver) => {
+                driver.get_enum_values(table, column, schema).await
+            }
         }
     }
 
