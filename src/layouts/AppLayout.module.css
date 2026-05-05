@@ -25,13 +25,6 @@
   bottom: 0;
 }
 
-/* Expanded state when hovering over collapsed sidebar (controlled via JS with delay) */
-.sidebar.collapsed.hoveredOpen {
-  width: 240px;
-  box-shadow: var(--shadow-lg), 4px 0 20px rgba(0, 0, 0, 0.3);
-  border-right: 1px solid var(--color-accent-primary);
-}
-
 .brand {
   height: 56px;
   display: flex;

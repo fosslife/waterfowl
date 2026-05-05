@@ -44,7 +44,7 @@ export function TabBar({
     <div className={styles.tabBar}>
       <div className={styles.tabList}>
         {tabs.map((tab) => (
-          <button
+          <div
             key={tab.id}
             className={clsx(
               styles.tab,
@@ -69,7 +69,7 @@ export function TabBar({
                 <X size={12} />
               </button>
             )}
-          </button>
+          </div>
         ))}
       </div>
     </div>

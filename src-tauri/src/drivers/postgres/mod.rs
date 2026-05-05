@@ -37,6 +37,51 @@ impl PostgresDriver {
     }
 }
 
+/// Maps a Postgres `udt_name` (uppercased) to the SQL type name suitable for
+/// casting a text parameter: `$1::type`. This lets Postgres use B-tree
+/// indexes on the column instead of forcing a sequential scan.
+///
+/// For custom / unknown types (e.g. user-defined enums), the udt_name is
+/// returned as-is — Postgres will resolve it correctly.
+fn pg_cast_type(udt_name: &str) -> String {
+    match udt_name {
+        // Integer types
+        "INT2" => "smallint".to_string(),
+        "INT4" => "integer".to_string(),
+        "INT8" => "bigint".to_string(),
+        // Floating-point
+        "FLOAT4" => "real".to_string(),
+        "FLOAT8" => "double precision".to_string(),
+        "NUMERIC" => "numeric".to_string(),
+        // Boolean
+        "BOOL" => "boolean".to_string(),
+        // UUID
+        "UUID" => "uuid".to_string(),
+        // Date/time
+        "DATE" => "date".to_string(),
+        "TIME" => "time".to_string(),
+        "TIMETZ" => "time with time zone".to_string(),
+        "TIMESTAMP" => "timestamp".to_string(),
+        "TIMESTAMPTZ" => "timestamp with time zone".to_string(),
+        "INTERVAL" => "interval".to_string(),
+        // Network
+        "INET" => "inet".to_string(),
+        "CIDR" => "cidr".to_string(),
+        "MACADDR" => "macaddr".to_string(),
+        // JSON
+        "JSON" => "json".to_string(),
+        "JSONB" => "jsonb".to_string(),
+        // Byte array
+        "BYTEA" => "bytea".to_string(),
+        // Money
+        "MONEY" => "money".to_string(),
+        // OID
+        "OID" => "oid".to_string(),
+        // Fallback: use the type name directly (handles enums, domains, etc.)
+        other => other.to_lowercase(),
+    }
+}
+
 #[async_trait]
 impl DatabaseDriver for PostgresDriver {
     async fn test_connection(config: &ConnectionConfig) -> Result<String, String> {
@@ -133,15 +178,26 @@ impl DatabaseDriver for PostgresDriver {
             })
             .collect();
 
-        // Get total count
-        let count_row = sqlx::query(&format!(
-            "SELECT COUNT(*) FROM \"{}\".\"{}\"",
-            schema, table
-        ))
+        // Get estimated total count from pg_class (O(1) catalog lookup).
+        // This avoids a full sequential scan that COUNT(*) would require on
+        // large tables due to PostgreSQL's MVCC.
+        let count_row = sqlx::query(
+            r#"
+            SELECT c.reltuples::bigint AS estimate
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = $1 AND n.nspname = $2
+            "#,
+        )
+        .bind(table)
+        .bind(schema)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| e.to_string())?;
-        let total_count: i64 = count_row.get(0);
+        let total_count: i64 = count_row
+            .try_get::<i64, _>("estimate")
+            .unwrap_or(0)
+            .max(0);
 
         // Fetch paginated data
         let rows = sqlx::query(&format!(
@@ -694,9 +750,14 @@ impl DatabaseDriver for PostgresDriver {
             })
             .collect();
 
+        // Build column type lookup: column_name -> udt_name (uppercased)
+        let column_type_map: std::collections::HashMap<&str, &str> = ordered_columns
+            .iter()
+            .map(|c| (c.name.as_str(), c.data_type.as_str()))
+            .collect();
+
         // Build valid column name set for validation
-        let valid_columns: std::collections::HashSet<&str> =
-            ordered_columns.iter().map(|c| c.name.as_str()).collect();
+        let valid_columns: std::collections::HashSet<&str> = column_type_map.keys().copied().collect();
 
         // Build WHERE clause from filters using parameterized queries
         let mut where_clauses: Vec<String> = Vec::new();
@@ -710,6 +771,14 @@ impl DatabaseDriver for PostgresDriver {
             }
 
             let col_quoted = format!("\"{}\"", filter.column);
+            let col_type = column_type_map
+                .get(filter.column.as_str())
+                .copied()
+                .unwrap_or("TEXT");
+            let is_text_type = matches!(
+                col_type,
+                "TEXT" | "VARCHAR" | "CHAR" | "BPCHAR" | "NAME" | "CITEXT"
+            );
 
             match filter.operator {
                 FilterOperator::IsNull => {
@@ -718,20 +787,8 @@ impl DatabaseDriver for PostgresDriver {
                 FilterOperator::IsNotNull => {
                     where_clauses.push(format!("{} IS NOT NULL", col_quoted));
                 }
-                FilterOperator::Equals => {
-                    if let Some(ref val) = filter.value {
-                        where_clauses.push(format!("{}::text = ${}", col_quoted, param_index));
-                        bind_values.push(val.clone());
-                        param_index += 1;
-                    }
-                }
-                FilterOperator::NotEquals => {
-                    if let Some(ref val) = filter.value {
-                        where_clauses.push(format!("{}::text != ${}", col_quoted, param_index));
-                        bind_values.push(val.clone());
-                        param_index += 1;
-                    }
-                }
+                // ILIKE operators: always cast column to text (can't use B-tree indexes for
+                // pattern matching anyway, and the user explicitly wants string matching)
                 FilterOperator::Contains => {
                     if let Some(ref val) = filter.value {
                         where_clauses
@@ -756,30 +813,94 @@ impl DatabaseDriver for PostgresDriver {
                         param_index += 1;
                     }
                 }
+                // Exact / comparison operators: cast the parameter to the column's type
+                // so Postgres can use B-tree indexes on the column
+                FilterOperator::Equals => {
+                    if let Some(ref val) = filter.value {
+                        if is_text_type {
+                            where_clauses.push(format!("{} = ${}", col_quoted, param_index));
+                        } else {
+                            let cast = pg_cast_type(col_type);
+                            where_clauses.push(format!(
+                                "{} = ${}::{}",
+                                col_quoted, param_index, cast
+                            ));
+                        }
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
+                FilterOperator::NotEquals => {
+                    if let Some(ref val) = filter.value {
+                        if is_text_type {
+                            where_clauses.push(format!("{} != ${}", col_quoted, param_index));
+                        } else {
+                            let cast = pg_cast_type(col_type);
+                            where_clauses.push(format!(
+                                "{} != ${}::{}",
+                                col_quoted, param_index, cast
+                            ));
+                        }
+                        bind_values.push(val.clone());
+                        param_index += 1;
+                    }
+                }
                 FilterOperator::GreaterThan => {
                     if let Some(ref val) = filter.value {
-                        where_clauses.push(format!("{}::text > ${}", col_quoted, param_index));
+                        if is_text_type {
+                            where_clauses.push(format!("{} > ${}", col_quoted, param_index));
+                        } else {
+                            let cast = pg_cast_type(col_type);
+                            where_clauses.push(format!(
+                                "{} > ${}::{}",
+                                col_quoted, param_index, cast
+                            ));
+                        }
                         bind_values.push(val.clone());
                         param_index += 1;
                     }
                 }
                 FilterOperator::LessThan => {
                     if let Some(ref val) = filter.value {
-                        where_clauses.push(format!("{}::text < ${}", col_quoted, param_index));
+                        if is_text_type {
+                            where_clauses.push(format!("{} < ${}", col_quoted, param_index));
+                        } else {
+                            let cast = pg_cast_type(col_type);
+                            where_clauses.push(format!(
+                                "{} < ${}::{}",
+                                col_quoted, param_index, cast
+                            ));
+                        }
                         bind_values.push(val.clone());
                         param_index += 1;
                     }
                 }
                 FilterOperator::GreaterThanOrEqual => {
                     if let Some(ref val) = filter.value {
-                        where_clauses.push(format!("{}::text >= ${}", col_quoted, param_index));
+                        if is_text_type {
+                            where_clauses.push(format!("{} >= ${}", col_quoted, param_index));
+                        } else {
+                            let cast = pg_cast_type(col_type);
+                            where_clauses.push(format!(
+                                "{} >= ${}::{}",
+                                col_quoted, param_index, cast
+                            ));
+                        }
                         bind_values.push(val.clone());
                         param_index += 1;
                     }
                 }
                 FilterOperator::LessThanOrEqual => {
                     if let Some(ref val) = filter.value {
-                        where_clauses.push(format!("{}::text <= ${}", col_quoted, param_index));
+                        if is_text_type {
+                            where_clauses.push(format!("{} <= ${}", col_quoted, param_index));
+                        } else {
+                            let cast = pg_cast_type(col_type);
+                            where_clauses.push(format!(
+                                "{} <= ${}::{}",
+                                col_quoted, param_index, cast
+                            ));
+                        }
                         bind_values.push(val.clone());
                         param_index += 1;
                     }
@@ -795,17 +916,39 @@ impl DatabaseDriver for PostgresDriver {
 
         let qualified_table = format!("\"{}\".\"{}\"", schema, table);
 
-        // Get filtered count
-        let count_sql = format!("SELECT COUNT(*) FROM {}{}", qualified_table, where_sql);
-        let mut count_query = sqlx::query(&count_sql);
-        for val in &bind_values {
-            count_query = count_query.bind(val);
-        }
-        let count_row = count_query
+        // When no filters are active, use the fast pg_class.reltuples estimate
+        // instead of COUNT(*) which requires a full table scan.
+        let total_count: i64 = if where_clauses.is_empty() {
+            let count_row = sqlx::query(
+                r#"
+                SELECT c.reltuples::bigint AS estimate
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = $1 AND n.nspname = $2
+                "#,
+            )
+            .bind(table)
+            .bind(schema)
             .fetch_one(&self.pool)
             .await
             .map_err(|e| e.to_string())?;
-        let total_count: i64 = count_row.get(0);
+            count_row
+                .try_get::<i64, _>("estimate")
+                .unwrap_or(0)
+                .max(0)
+        } else {
+            // Filters applied — exact count is needed
+            let count_sql = format!("SELECT COUNT(*) FROM {}{}", qualified_table, where_sql);
+            let mut count_query = sqlx::query(&count_sql);
+            for val in &bind_values {
+                count_query = count_query.bind(val);
+            }
+            let count_row = count_query
+                .fetch_one(&self.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            count_row.get(0)
+        };
 
         // Fetch filtered paginated data
         let data_sql = format!(

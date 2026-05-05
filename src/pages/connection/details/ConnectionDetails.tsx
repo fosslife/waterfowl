@@ -389,8 +389,8 @@ function ConnectionWorkspace() {
       </header>
 
       {/* Tab Bar */}
-      <TabBar
-        tabs={tabs}
+      <TabBar 
+        tabs={tabs} 
         activeTabId={activeTabId}
         onTabClick={setActiveTab}
         onTabClose={closeTab}

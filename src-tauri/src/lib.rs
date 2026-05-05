@@ -22,8 +22,8 @@ mod drivers;
 mod state;
 mod types;
 
+use std::env;
 use state::AppState;
-#[cfg(debug_assertions)]
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -53,6 +53,13 @@ pub fn run() {
             commands::execute_query,
         ])
         .setup(|app| {
+            let process_arg: Vec<String> = env::args().collect();
+            if process_arg.contains(&"--debug".to_string()) {
+            // in prod build, if --debug is passed, open devtools
+            app.get_webview_window("main").unwrap().open_devtools();
+            }
+
+            // open devtools in dev build anyway
             #[cfg(debug_assertions)]
             app.get_webview_window("main").unwrap().open_devtools();
 

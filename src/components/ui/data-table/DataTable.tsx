@@ -679,13 +679,19 @@ export function DataTable({
             </thead>
             <tbody
               style={{
-                height: data.length === 0 ? "100%" : `${rowVirtualizer.getTotalSize()}px`,
+                height:
+                  data.length === 0
+                    ? "100%"
+                    : `${rowVirtualizer.getTotalSize()}px`,
                 position: "relative",
               }}
             >
               {data.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + (selectable ? 1 : 0) + 1} style={{ padding: "40px" }}>
+                  <td
+                    colSpan={columns.length + (selectable ? 1 : 0) + 1}
+                    style={{ padding: "40px" }}
+                  >
                     <div className={styles.emptyState}>
                       <Database size={32} className={styles.emptyIcon} />
                       <span className={styles.emptyText}>{emptyMessage}</span>
@@ -696,27 +702,27 @@ export function DataTable({
                 virtualRows.map((virtualRow) => {
                   const row = rows[virtualRow.index];
                   return (
-                  <TableRow
-                    key={row.id}
-                    row={row}
-                    virtualRow={virtualRow}
-                    isSelected={selectedIndices.has(virtualRow.index)}
-                    isOdd={virtualRow.index % 2 === 1}
-                    selectable={selectable}
-                    pagination={pagination}
-                    totalTableWidth={totalTableWidth}
-                    onToggleSelection={toggleRowSelection}
-                    selectedCellColumnId={
-                      selectedCell?.rowIndex === virtualRow.index
-                        ? selectedCell.columnId
-                        : null
-                    }
-                    onCellClick={handleCellClick}
-                    onCellDoubleClick={handleCellDoubleClick}
-                    onContextMenu={handleContextMenu}
-                  />
-                );
-              })
+                    <TableRow
+                      key={row.id}
+                      row={row}
+                      virtualRow={virtualRow}
+                      isSelected={selectedIndices.has(virtualRow.index)}
+                      isOdd={virtualRow.index % 2 === 1}
+                      selectable={selectable}
+                      pagination={pagination}
+                      totalTableWidth={totalTableWidth}
+                      onToggleSelection={toggleRowSelection}
+                      selectedCellColumnId={
+                        selectedCell?.rowIndex === virtualRow.index
+                          ? selectedCell.columnId
+                          : null
+                      }
+                      onCellClick={handleCellClick}
+                      onCellDoubleClick={handleCellDoubleClick}
+                      onContextMenu={handleContextMenu}
+                    />
+                  );
+                })
               )}
             </tbody>
           </table>

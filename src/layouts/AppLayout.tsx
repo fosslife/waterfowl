@@ -7,64 +7,24 @@ import {
   PanelLeft,
 } from "lucide-react";
 import { NavLink, Outlet, useParams, useLocation } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import clsx from "clsx";
 import { useConnections } from "../context/ConnectionsContext";
 import styles from "./AppLayout.module.css";
-
-const HOVER_DELAY_MS = 400;
 
 export function AppLayout() {
   const { connections } = useConnections();
   const { id: activeConnectionId } = useParams();
   const location = useLocation();
 
-  // Auto-collapse when viewing a connection
   const isInConnection = location.pathname.startsWith("/connection/");
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const hoverTimeoutRef = useRef<number | null>(null);
 
-  // Auto-collapse when entering a connection view
   useEffect(() => {
     if (isInConnection) {
       setIsCollapsed(true);
     }
   }, [isInConnection]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleMouseEnter = () => {
-    if (!isCollapsed) return;
-
-    // Clear any existing timeout
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-
-    // Delay before expanding to filter out accidental hovers
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      setIsHovered(true);
-    }, HOVER_DELAY_MS);
-  };
-
-  const handleMouseLeave = () => {
-    // Cancel pending hover
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-    setIsHovered(false);
-  };
-
-  const showExpanded = !isCollapsed || isHovered;
 
   return (
     <div className={styles.layout}>
@@ -72,38 +32,38 @@ export function AppLayout() {
         className={clsx(
           styles.sidebar,
           isCollapsed && styles.collapsed,
-          isCollapsed && isHovered && styles.hoveredOpen,
         )}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
       >
         <div className={styles.brand}>
           <NavLink to="/" className={styles.logo}>
             <span className={styles.logoText}>WF</span>
             <div className={styles.logoPulse} />
           </NavLink>
-          {showExpanded && <span className={styles.brandName}>Waterfowl</span>}
+          {!isCollapsed && <span className={styles.brandName}>Waterfowl</span>}
 
-          {showExpanded && (
+          {!isCollapsed && (
             <button
               className={styles.collapseBtn}
-              onClick={() => {
-                setIsCollapsed(!isCollapsed);
-                setIsHovered(false);
-              }}
-              title={isCollapsed ? "Pin sidebar" : "Collapse sidebar"}
+              onClick={() => setIsCollapsed(true)}
+              title="Collapse sidebar"
             >
-              {isCollapsed ? (
-                <PanelLeft size={14} />
-              ) : (
-                <PanelLeftClose size={14} />
-              )}
+              <PanelLeftClose size={14} />
             </button>
           )}
         </div>
 
         <nav className={styles.nav}>
-          {showExpanded && (
+          {isCollapsed && (
+            <button
+              className={styles.navItem}
+              onClick={() => setIsCollapsed(false)}
+              title="Expand sidebar"
+            >
+              <PanelLeft size={18} />
+            </button>
+          )}
+
+          {!isCollapsed && (
             <div className={styles.sectionTitle}>
               <span>Actions</span>
             </div>
@@ -117,10 +77,10 @@ export function AppLayout() {
             title="New Connection"
           >
             <Plus size={18} />
-            {showExpanded && <span>New Connection</span>}
+            {!isCollapsed && <span>New Connection</span>}
           </NavLink>
 
-          {showExpanded && (
+          {!isCollapsed && (
             <div
               className={`${styles.sectionTitle} ${styles.connectionsSectionTitle}`}
             >
@@ -133,7 +93,7 @@ export function AppLayout() {
             </div>
           )}
 
-          {showExpanded && connections.length === 0 && (
+          {!isCollapsed && connections.length === 0 && (
             <div className={styles.emptyState}>
               <Database size={20} className={styles.emptyIcon} />
               <span>No connections yet</span>
@@ -153,7 +113,7 @@ export function AppLayout() {
                   )
                 }
                 title={
-                  !showExpanded
+                  isCollapsed
                     ? `${conn.name} (${conn.host}:${conn.port})`
                     : undefined
                 }
@@ -168,7 +128,7 @@ export function AppLayout() {
                     )}
                   />
                 </div>
-                {showExpanded && (
+                {!isCollapsed && (
                   <div className={styles.connectionInfo}>
                     <span className={styles.connectionName}>{conn.name}</span>
                     <span className={styles.connectionHost}>
@@ -184,9 +144,9 @@ export function AppLayout() {
         <div className={styles.footer}>
           <button className={styles.navItem} title="Settings">
             <Settings size={16} />
-            {showExpanded && <span>Settings</span>}
+            {!isCollapsed && <span>Settings</span>}
           </button>
-          {showExpanded && <div className={styles.version}>v0.1.0</div>}
+          {!isCollapsed && <div className={styles.version}>v0.1.0</div>}
         </div>
       </aside>
 

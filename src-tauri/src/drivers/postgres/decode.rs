@@ -345,7 +345,7 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
                     Ok(arr) => {
                         return json!(arr);
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         // Try raw text decode for array
                         let result = decode_pg_raw_text(row, ordinal, type_name);
                         return result;
@@ -356,7 +356,7 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
             // For non-array types, try to decode as String (works for ENUMs and many other types)
             match row.try_get::<String, _>(ordinal) {
                 Ok(s) => Value::String(s),
-                Err(e) => {
+                Err(_e) => {
                     // Try raw text decode as last resort
                     decode_pg_raw_text(row, ordinal, type_name)
                 }
