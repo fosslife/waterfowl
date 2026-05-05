@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "seed": "tsx dev/seed.ts",
     "seed:small": "SEED_COUNT=10 tsx dev/seed.ts",
-    "seed:large": "SEED_COUNT=1000 tsx dev/seed.ts"
+    "seed:large": "SEED_COUNT=1000 tsx dev/seed.ts",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
@@ -44,6 +45,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "pg": "^8.20.0",
+    "prettier": "^3.8.3",
     "tsx": "^4.21.0",
     "typescript": "~6.0.3",
     "vite": "^8.0.10"

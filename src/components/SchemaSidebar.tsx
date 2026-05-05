@@ -50,7 +50,7 @@ export function SchemaSidebar({
 }: SchemaSidebarProps) {
   const [filter, setFilter] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["tables"])
+    new Set(["tables"]),
   );
   const [isSchemaDropdownOpen, setIsSchemaDropdownOpen] = useState(false);
 
@@ -68,7 +68,7 @@ export function SchemaSidebar({
 
   const filterItems = (items: SchemaObject[]) =>
     items.filter((item) =>
-      item.name.toLowerCase().includes(filter.toLowerCase())
+      item.name.toLowerCase().includes(filter.toLowerCase()),
     );
 
   const formatRowCount = (count: number | null) => {

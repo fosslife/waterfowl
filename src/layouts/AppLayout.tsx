@@ -10,10 +10,12 @@ import { NavLink, Outlet, useParams, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import clsx from "clsx";
 import { useConnections } from "../context/ConnectionsContext";
+import { useNewConnectionModal } from "../context/NewConnectionModalContext";
 import styles from "./AppLayout.module.css";
 
 export function AppLayout() {
   const { connections } = useConnections();
+  const { openNewConnectionModal } = useNewConnectionModal();
   const { id: activeConnectionId } = useParams();
   const location = useLocation();
 
@@ -28,12 +30,7 @@ export function AppLayout() {
 
   return (
     <div className={styles.layout}>
-      <aside
-        className={clsx(
-          styles.sidebar,
-          isCollapsed && styles.collapsed,
-        )}
-      >
+      <aside className={clsx(styles.sidebar, isCollapsed && styles.collapsed)}>
         <div className={styles.brand}>
           <NavLink to="/" className={styles.logo}>
             <span className={styles.logoText}>WF</span>
@@ -69,16 +66,14 @@ export function AppLayout() {
             </div>
           )}
 
-          <NavLink
-            to="/connection/new"
-            className={({ isActive }) =>
-              clsx(styles.navItem, styles.addNew, isActive && styles.active)
-            }
+          <button
+            className={clsx(styles.navItem, styles.addNew)}
+            onClick={openNewConnectionModal}
             title="New Connection"
           >
             <Plus size={18} />
             {!isCollapsed && <span>New Connection</span>}
-          </NavLink>
+          </button>
 
           {!isCollapsed && (
             <div

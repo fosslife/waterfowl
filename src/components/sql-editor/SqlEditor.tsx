@@ -24,7 +24,7 @@ export const SqlEditor = forwardRef<SqlEditorRef, SqlEditorProps>(
         <CodeMirrorEngine ref={ref} {...editorProps} />
       </div>
     );
-  }
+  },
 );
 
 // Re-export types for convenience

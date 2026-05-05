@@ -50,7 +50,7 @@ interface ConnectionsContextType {
 }
 
 const ConnectionsContext = createContext<ConnectionsContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export function ConnectionsProvider({

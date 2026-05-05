@@ -32,8 +32,6 @@ function getCellClass(val: any): string {
   return "";
 }
 
-
-
 export const TableRow = memo(function TableRow({
   row,
   virtualRow,

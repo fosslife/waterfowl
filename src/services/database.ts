@@ -15,7 +15,7 @@ let db: Database | null = null;
  */
 export async function getDatabase(): Promise<Database> {
   if (!db) {
-    console.log("intializing db with migrations")
+    console.log("intializing db with migrations");
     db = await Database.load(DB_NAME);
     await runMigrations(db);
   }
@@ -40,16 +40,15 @@ async function runMigrations(database: Database): Promise<void> {
   for (const migration of MIGRATIONS) {
     const applied = await database.select<{ name: string }[]>(
       "SELECT name FROM _migrations WHERE name = ?",
-      [migration.name]
+      [migration.name],
     );
 
     if (applied.length === 0) {
       console.log(`Running migration: ${migration.name}`);
       await database.execute(migration.sql);
-      await database.execute(
-        "INSERT INTO _migrations (name) VALUES (?)",
-        [migration.name]
-      );
+      await database.execute("INSERT INTO _migrations (name) VALUES (?)", [
+        migration.name,
+      ]);
     }
   }
 }

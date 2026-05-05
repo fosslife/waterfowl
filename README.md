@@ -1,6 +1,6 @@
 # Waterfowl
 
-Waterfowl is a database management tool for PostgreSQL. 
+Waterfowl is a database management tool for PostgreSQL.
 
 | App is work in progress, not ready for production use
 
@@ -17,7 +17,6 @@ yarn tauri dev
 ![Waterfowl](/dev/2.png)
 ![Waterfowl](/dev/3.png)
 
-
 ## Features
 
 - Connection Management
@@ -27,6 +26,3 @@ yarn tauri dev
 - Data Export
 - Data Import
 - Data Editing
-
-
-

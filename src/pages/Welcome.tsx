@@ -13,11 +13,13 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useConnections, Connection } from "../context/ConnectionsContext";
+import { useNewConnectionModal } from "../context/NewConnectionModalContext";
 import { getRecentConnectionIds } from "../services/connections";
 import styles from "./Welcome.module.css";
 
 export function Welcome() {
   const { connections, isLoading } = useConnections();
+  const { openNewConnectionModal } = useNewConnectionModal();
   const [recentConnections, setRecentConnections] = useState<Connection[]>([]);
   const hasConnections = connections.length > 0;
 
@@ -106,7 +108,10 @@ export function Welcome() {
                 <ConnectionCard key={conn.id} connection={conn} />
               ))}
             </div>
-            <Link to="/connection/new" className={styles.newConnectionLink}>
+            <button
+              className={styles.newConnectionLink}
+              onClick={openNewConnectionModal}
+            >
               <div className={styles.newConnectionCard}>
                 <div className={styles.newConnectionIcon}>
                   <Plus size={20} />
@@ -114,7 +119,7 @@ export function Welcome() {
                 <span>Add New Connection</span>
                 <ArrowRight size={16} className={styles.arrowIcon} />
               </div>
-            </Link>
+            </button>
           </div>
 
           {/* Right column: Quick Tips & Shortcuts */}
@@ -156,6 +161,8 @@ export function Welcome() {
 
 // First-time experience for new users
 function FirstTimeExperience() {
+  const { openNewConnectionModal } = useNewConnectionModal();
+
   return (
     <div className={styles.page}>
       {/* Background grid pattern */}
@@ -187,9 +194,9 @@ function FirstTimeExperience() {
           <FeaturePill icon={<Terminal size={14} />} text="Raw SQL Access" />
         </div>
 
-        <Link to="/connection/new">
-          <Button size="lg">Create First Connection</Button>
-        </Link>
+        <Button size="lg" onClick={openNewConnectionModal}>
+          Create First Connection
+        </Button>
 
         <p className={styles.footnote}>PostgreSQL 12+ supported</p>
       </div>

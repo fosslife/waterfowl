@@ -70,9 +70,9 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
 
   // Filter state
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
-  const [enumValuesMap, setEnumValuesMap] = useState<
-    Record<string, string[]>
-  >({});
+  const [enumValuesMap, setEnumValuesMap] = useState<Record<string, string[]>>(
+    {},
+  );
   const fetchIdRef = useRef(0); // Track latest fetch to discard stale results
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -212,13 +212,7 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
 
   const handlePageSizeChange = useCallback(
     (newPageSize: number) => {
-      fetchTableData(
-        tab.tableName,
-        tab.schema,
-        0,
-        newPageSize,
-        activeFilters,
-      );
+      fetchTableData(tab.tableName, tab.schema, 0, newPageSize, activeFilters);
     },
     [tab, activeFilters, fetchTableData],
   );
@@ -275,12 +269,9 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
     [toast],
   );
 
-  const handleDeleteRowsRequest = useCallback(
-    (rows: Record<string, any>[]) => {
-      setDeleteConfirm({ isOpen: true, rows });
-    },
-    [],
-  );
+  const handleDeleteRowsRequest = useCallback((rows: Record<string, any>[]) => {
+    setDeleteConfirm({ isOpen: true, rows });
+  }, []);
 
   const handleDeleteRowsConfirm = useCallback(async () => {
     toast.info(

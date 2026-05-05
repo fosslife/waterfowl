@@ -22,7 +22,7 @@ export function Skeleton({
         styles.skeleton,
         styles[variant],
         styles[animation],
-        className
+        className,
       )}
       style={{ width, height }}
     />

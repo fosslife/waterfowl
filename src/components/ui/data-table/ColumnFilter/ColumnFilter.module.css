@@ -30,11 +30,7 @@
 
 .filterToggleActive {
   color: var(--color-accent-primary);
-  background: color-mix(
-    in srgb,
-    var(--color-accent-primary) 8%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--color-accent-primary) 8%, transparent);
   border-color: color-mix(
     in srgb,
     var(--color-accent-primary) 30%,
@@ -203,11 +199,7 @@
 .operatorActive {
   color: var(--color-accent-primary);
   font-weight: var(--weight-semibold);
-  background: color-mix(
-    in srgb,
-    var(--color-accent-primary) 8%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--color-accent-primary) 8%, transparent);
 }
 
 /* ── Clear Button ────────────────────────────────── */

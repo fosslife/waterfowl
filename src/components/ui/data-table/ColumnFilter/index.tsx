@@ -38,11 +38,14 @@ export const FilterCell = memo(function FilterCell({
   const category = getFilterCategory(pgType);
   const isEnum = category === "enum" && enumValues && enumValues.length > 0;
 
-  const resolvedCategory: FilterCategory = isEnum ? "enum" : category === "enum" ? "generic" : category;
+  const resolvedCategory: FilterCategory = isEnum
+    ? "enum"
+    : category === "enum"
+      ? "generic"
+      : category;
 
   const hasValue =
-    value !== undefined &&
-    value !== "" ||
+    (value !== undefined && value !== "") ||
     operator === "is_null" ||
     operator === "is_not_null";
 

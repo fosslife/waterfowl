@@ -47,7 +47,7 @@ const sqlLanguageCompartment = new Compartment();
  * This provides table/column completions that work alongside SQL keyword completions
  */
 function buildSqlSchema(
-  schemaData?: SchemaCompletionData
+  schemaData?: SchemaCompletionData,
 ): SQLConfig["schema"] {
   if (!schemaData) return undefined;
 
@@ -201,7 +201,7 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
       maxHeight,
       className,
     },
-    ref
+    ref,
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
@@ -246,7 +246,7 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
               return true;
             },
           },
-        ])
+        ]),
       );
 
       const updateListener = EditorView.updateListener.of((update) => {
@@ -283,7 +283,7 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
               dialect: PostgreSQL,
               upperCaseKeywords: true,
               schema: sqlSchema,
-            })
+            }),
           ),
 
           // Autocomplete configuration (uses completions from sql() above)
@@ -361,7 +361,7 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
 
       view.dispatch({
         effects: editableCompartment.reconfigure(
-          EditorView.editable.of(!readOnly)
+          EditorView.editable.of(!readOnly),
         ),
       });
     }, [readOnly]);
@@ -373,7 +373,7 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
 
       view.dispatch({
         effects: diagnosticsCompartment.reconfigure(
-          linter(() => cmDiagnostics)
+          linter(() => cmDiagnostics),
         ),
       });
     }, [cmDiagnostics]);
@@ -389,7 +389,7 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
             dialect: PostgreSQL,
             upperCaseKeywords: true,
             schema: sqlSchema,
-          })
+          }),
         ),
       });
     }, [sqlSchema]);
@@ -442,5 +442,5 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
         }}
       />
     );
-  }
+  },
 );

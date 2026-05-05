@@ -15,7 +15,8 @@
   position: absolute;
   inset: 0;
   opacity: 0.05;
-  background-image: linear-gradient(rgba(0, 243, 255, 0.3) 1px, transparent 1px),
+  background-image:
+    linear-gradient(rgba(0, 243, 255, 0.3) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 243, 255, 0.3) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
@@ -295,7 +296,9 @@
   color: var(--color-text-tertiary);
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .connectionCard:hover .arrowIcon,
@@ -309,6 +312,13 @@
   text-decoration: none;
   color: inherit;
   margin-top: 4px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+  text-align: left;
 }
 
 .newConnectionCard {

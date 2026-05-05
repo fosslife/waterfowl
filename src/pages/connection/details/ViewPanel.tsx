@@ -62,12 +62,29 @@ export function ViewPanel({ connectionId, tab }: ViewPanelProps) {
 
   useEffect(() => {
     fetchViewData(tab.viewName, tab.schema, 0, viewPagination.pageSize);
-  }, [connectionId, tab.viewName, tab.schema]); // Intentionally not dependent on viewPagination.pageSize inside the effect 
+  }, [connectionId, tab.viewName, tab.schema]); // Intentionally not dependent on viewPagination.pageSize inside the effect
 
   return (
     <>
-      <div style={{ padding: '8px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)', fontWeight: 500, fontSize: '0.85rem' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+      <div
+        style={{
+          padding: "8px 16px",
+          background: "var(--bg-secondary)",
+          borderBottom: "1px solid var(--border-color)",
+          fontWeight: 500,
+          fontSize: "0.85rem",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "2px 8px",
+            borderRadius: "4px",
+            background: "var(--bg-tertiary)",
+            color: "var(--text-secondary)",
+          }}
+        >
           Read-Only View
         </span>
       </div>
@@ -85,12 +102,7 @@ export function ViewPanel({ connectionId, tab }: ViewPanelProps) {
           );
         }}
         onPageSizeChange={(newPageSize) => {
-          fetchViewData(
-            tab.viewName,
-            tab.schema,
-            0,
-            newPageSize,
-          );
+          fetchViewData(tab.viewName, tab.schema, 0, newPageSize);
         }}
       />
     </>

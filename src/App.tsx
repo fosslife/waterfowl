@@ -5,21 +5,26 @@ import { NewConnection } from "./pages/connection/new/NewConnection";
 import { ConnectionDetails } from "./pages/connection/details/ConnectionDetails";
 import { ConnectionsProvider } from "./context/ConnectionsContext";
 import { ToastProvider } from "./context/ToastContext";
+import { NewConnectionModalProvider } from "./context/NewConnectionModalContext";
 
 function App() {
   return (
     <ToastProvider>
       <ConnectionsProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Welcome />} />
-              <Route path="/connection/new" element={<NewConnection />} />
-              <Route path="/connection/edit/:id" element={<NewConnection />} />
-              <Route path="/connection/:id" element={<ConnectionDetails />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+        <NewConnectionModalProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Welcome />} />
+                <Route
+                  path="/connection/edit/:id"
+                  element={<NewConnection />}
+                />
+                <Route path="/connection/:id" element={<ConnectionDetails />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </NewConnectionModalProvider>
       </ConnectionsProvider>
     </ToastProvider>
   );

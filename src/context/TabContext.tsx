@@ -7,7 +7,14 @@ import {
 } from "react";
 
 // Tab types
-export type TabType = "dashboard" | "table" | "view" | "function" | "sequence" | "structure" | "sql";
+export type TabType =
+  | "dashboard"
+  | "table"
+  | "view"
+  | "function"
+  | "sequence"
+  | "structure"
+  | "sql";
 
 export interface BaseTab {
   id: string;
@@ -56,7 +63,14 @@ export interface SqlTab extends BaseTab {
   queryId?: string;
 }
 
-export type Tab = DashboardTab | TableTab | ViewTab | FunctionTab | SequenceTab | StructureTab | SqlTab;
+export type Tab =
+  | DashboardTab
+  | TableTab
+  | ViewTab
+  | FunctionTab
+  | SequenceTab
+  | StructureTab
+  | SqlTab;
 
 // Type for creating new tabs (without id)
 export type NewDashboardTab = Omit<DashboardTab, "id">;
@@ -66,7 +80,14 @@ export type NewFunctionTab = Omit<FunctionTab, "id">;
 export type NewSequenceTab = Omit<SequenceTab, "id">;
 export type NewStructureTab = Omit<StructureTab, "id">;
 export type NewSqlTab = Omit<SqlTab, "id">;
-export type NewTab = NewDashboardTab | NewTableTab | NewViewTab | NewFunctionTab | NewSequenceTab | NewStructureTab | NewSqlTab;
+export type NewTab =
+  | NewDashboardTab
+  | NewTableTab
+  | NewViewTab
+  | NewFunctionTab
+  | NewSequenceTab
+  | NewStructureTab
+  | NewSqlTab;
 
 interface TabContextValue {
   tabs: Tab[];
@@ -107,7 +128,7 @@ export function TabProvider({ children }: TabProviderProps) {
           (t) =>
             t.type === "table" &&
             (t as TableTab).schema === tableData.schema &&
-            (t as TableTab).tableName === tableData.tableName
+            (t as TableTab).tableName === tableData.tableName,
         );
         if (existing) {
           setActiveTabId(existing.id);
@@ -122,7 +143,7 @@ export function TabProvider({ children }: TabProviderProps) {
           (t) =>
             t.type === "view" &&
             (t as ViewTab).schema === viewData.schema &&
-            (t as ViewTab).viewName === viewData.viewName
+            (t as ViewTab).viewName === viewData.viewName,
         );
         if (existing) {
           setActiveTabId(existing.id);
@@ -137,7 +158,7 @@ export function TabProvider({ children }: TabProviderProps) {
           (t) =>
             t.type === "function" &&
             (t as FunctionTab).schema === funcData.schema &&
-            (t as FunctionTab).functionName === funcData.functionName
+            (t as FunctionTab).functionName === funcData.functionName,
         );
         if (existing) {
           setActiveTabId(existing.id);
@@ -152,7 +173,7 @@ export function TabProvider({ children }: TabProviderProps) {
           (t) =>
             t.type === "sequence" &&
             (t as SequenceTab).schema === seqData.schema &&
-            (t as SequenceTab).sequenceName === seqData.sequenceName
+            (t as SequenceTab).sequenceName === seqData.sequenceName,
         );
         if (existing) {
           setActiveTabId(existing.id);
@@ -167,7 +188,7 @@ export function TabProvider({ children }: TabProviderProps) {
           (t) =>
             t.type === "structure" &&
             (t as StructureTab).schema === structData.schema &&
-            (t as StructureTab).tableName === structData.tableName
+            (t as StructureTab).tableName === structData.tableName,
         );
         if (existing) {
           setActiveTabId(existing.id);
@@ -184,7 +205,7 @@ export function TabProvider({ children }: TabProviderProps) {
       setActiveTabId(newTab.id);
       return newTab.id;
     },
-    [tabs]
+    [tabs],
   );
 
   const closeTab = useCallback(
@@ -206,7 +227,7 @@ export function TabProvider({ children }: TabProviderProps) {
         return newTabs;
       });
     },
-    [activeTabId]
+    [activeTabId],
   );
 
   const setActiveTab = useCallback((tabId: string) => {
@@ -215,7 +236,9 @@ export function TabProvider({ children }: TabProviderProps) {
 
   const updateTab = useCallback((tabId: string, updates: Partial<Tab>) => {
     setTabs((prev) =>
-      prev.map((tab) => (tab.id === tabId ? ({ ...tab, ...updates } as Tab) : tab))
+      prev.map((tab) =>
+        tab.id === tabId ? ({ ...tab, ...updates } as Tab) : tab,
+      ),
     );
   }, []);
 
@@ -223,10 +246,12 @@ export function TabProvider({ children }: TabProviderProps) {
     (schema: string, tableName: string): Tab | undefined => {
       return tabs.find(
         (t) =>
-          t.type === "table" && t.schema === schema && t.tableName === tableName
+          t.type === "table" &&
+          t.schema === schema &&
+          t.tableName === tableName,
       );
     },
-    [tabs]
+    [tabs],
   );
 
   const getActiveTab = useCallback((): Tab | undefined => {

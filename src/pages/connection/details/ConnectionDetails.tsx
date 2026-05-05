@@ -389,8 +389,8 @@ function ConnectionWorkspace() {
       </header>
 
       {/* Tab Bar */}
-      <TabBar 
-        tabs={tabs} 
+      <TabBar
+        tabs={tabs}
         activeTabId={activeTabId}
         onTabClick={setActiveTab}
         onTabClose={closeTab}
@@ -460,14 +460,20 @@ function ConnectionWorkspace() {
           {/* Function tab */}
           {activeTab?.type === "function" && (
             <div className={styles.functionView}>
-              <FunctionPanel connectionId={id!} tab={activeTab as FunctionTab} />
+              <FunctionPanel
+                connectionId={id!}
+                tab={activeTab as FunctionTab}
+              />
             </div>
           )}
 
           {/* Sequence tab */}
           {activeTab?.type === "sequence" && (
             <div className={styles.sequenceView}>
-              <SequencePanel connectionId={id!} tab={activeTab as SequenceTab} />
+              <SequencePanel
+                connectionId={id!}
+                tab={activeTab as SequenceTab}
+              />
             </div>
           )}
 

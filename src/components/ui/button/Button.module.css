@@ -35,7 +35,8 @@
 
 .button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-base-0),
+  box-shadow:
+    0 0 0 2px var(--color-base-0),
     0 0 0 4px var(--color-accent-primary);
 }
 

@@ -57,7 +57,7 @@ export async function saveConnection(input: ConnectionInput): Promise<string> {
   // Check if exists for update vs insert
   const existing = await db.select<{ id: string }[]>(
     "SELECT id FROM connections WHERE id = ?",
-    [id]
+    [id],
   );
 
   if (existing.length > 0) {
@@ -78,7 +78,7 @@ export async function saveConnection(input: ConnectionInput): Promise<string> {
         input.default_schema,
         now,
         id,
-      ]
+      ],
     );
   } else {
     // Insert
@@ -98,7 +98,7 @@ export async function saveConnection(input: ConnectionInput): Promise<string> {
         input.default_schema,
         now,
         now,
-      ]
+      ],
     );
   }
 
@@ -111,7 +111,7 @@ export async function saveConnection(input: ConnectionInput): Promise<string> {
 export async function getConnections(): Promise<StoredConnection[]> {
   const db = await getDatabase();
   const rows = await db.select<StoredConnection[]>(
-    "SELECT * FROM connections ORDER BY name"
+    "SELECT * FROM connections ORDER BY name",
   );
   return rows;
 }
@@ -120,12 +120,12 @@ export async function getConnections(): Promise<StoredConnection[]> {
  * Get a single connection by ID.
  */
 export async function getConnection(
-  id: string
+  id: string,
 ): Promise<StoredConnection | null> {
   const db = await getDatabase();
   const rows = await db.select<StoredConnection[]>(
     "SELECT * FROM connections WHERE id = ?",
-    [id]
+    [id],
   );
   return rows[0] ?? null;
 }
@@ -142,7 +142,9 @@ export async function deleteConnection(id: string): Promise<void> {
 /**
  * Record that a connection was used (for recent connections).
  */
-export async function recordConnectionUsage(connectionId: string): Promise<void> {
+export async function recordConnectionUsage(
+  connectionId: string,
+): Promise<void> {
   const db = await getDatabase();
   const now = new Date().toISOString();
 
@@ -151,7 +153,7 @@ export async function recordConnectionUsage(connectionId: string): Promise<void>
     `INSERT INTO connection_usage (connection_id, last_used_at)
      VALUES (?, ?)
      ON CONFLICT(connection_id) DO UPDATE SET last_used_at = ?`,
-    [connectionId, now, now]
+    [connectionId, now, now],
   );
 }
 
@@ -164,7 +166,7 @@ export async function getRecentConnectionIds(limit = 10): Promise<string[]> {
     `SELECT connection_id FROM connection_usage
      ORDER BY last_used_at DESC
      LIMIT ?`,
-    [limit]
+    [limit],
   );
   return rows.map((r) => r.connection_id);
 }
