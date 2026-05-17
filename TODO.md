@@ -5,7 +5,7 @@ Row selection — bulk export
 ~~Cell expansion — Click/hover to see full content for truncated text/JSON~~
 ~~Keyboard navigation — Arrow keys to move between cells~~
 Medium Priority:
-Filtering — Per-column filters (especially useful for VARCHAR/text)
+~~Filtering — Per-column filters (especially useful for VARCHAR/text)~~
 Global search — Ctrl+F style find within results
 Column visibility toggle — Hide columns you don't need
 ~~Inline editing — Double-click to edit cell values~~

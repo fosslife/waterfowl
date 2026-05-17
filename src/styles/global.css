@@ -159,3 +159,11 @@ button {
   outline: 2px solid var(--color-accent-primary);
   outline-offset: 2px;
 }
+
+/* Active column-resize drag: lock cursor & disable selection app-wide so the
+   cursor doesn't flicker when the pointer crosses other elements mid-drag. */
+html.is-col-resizing,
+html.is-col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}

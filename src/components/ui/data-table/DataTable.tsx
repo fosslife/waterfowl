@@ -1,4 +1,11 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   Loader2,
@@ -276,6 +283,9 @@ export function DataTable({
     [columns],
   );
 
+  // Live column-resize is handled by us via CSS variables (see resize handler
+   // below). TanStack's built-in resize is disabled because it routes every
+   // mousemove through React state, which re-renders all visible rows.
   const table = useReactTable({
     data,
     columns,
@@ -285,13 +295,96 @@ export function DataTable({
     },
     onSortingChange: setSorting,
     onColumnSizingChange: setColumnSizing,
-    columnResizeMode: "onChange", // Better perf: only update state when drag ends
-    enableColumnResizing: true,
+    enableColumnResizing: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
   const { rows } = table.getRowModel();
+
+  // --- Column-width state via CSS variables --------------------------------
+  // Each column has a CSS var `--dt-w-<i>` on the wrapper. The total table
+  // width is `--dt-table-w`. During drag we mutate these vars directly on the
+  // wrapper DOM node — no React state churn until mouseup.
+  const DEFAULT_COL_W = 150;
+  const MIN_COL_W = 50;
+  const MAX_COL_W = 500;
+  const FIXED_PREFIX_W = (selectable ? 40 : 0) + 50; // checkbox + row-index
+
+  // Memoized per-column inline style objects keyed by columnId. Stable across
+  // renders so TableRow's memo isn't broken by new prop identities.
+  const colWidthStyles = useMemo(() => {
+    const map: Record<string, React.CSSProperties> = {};
+    for (let i = 0; i < columnIds.length; i++) {
+      map[columnIds[i]] = { width: `var(--dt-w-${i})` };
+    }
+    return map;
+  }, [columnIds]);
+
+  // Mirror columnSizing in a ref so the resize handler can read current widths
+  // without re-binding listeners.
+  const sizingRef = useRef<Record<string, number>>({});
+
+  useLayoutEffect(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+    let total = FIXED_PREFIX_W;
+    for (let i = 0; i < columnIds.length; i++) {
+      const id = columnIds[i];
+      const w = columnSizing[id] ?? DEFAULT_COL_W;
+      sizingRef.current[id] = w;
+      el.style.setProperty(`--dt-w-${i}`, `${w}px`);
+      total += w;
+    }
+    el.style.setProperty("--dt-table-w", `${total}px`);
+  }, [columnIds, columnSizing, FIXED_PREFIX_W]);
+
+  const handleResizeStart = useCallback(
+    (colId: string, colIdx: number, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const el = tableContainerRef.current;
+      if (!el) return;
+      const startX = e.clientX;
+      const startW = sizingRef.current[colId] ?? DEFAULT_COL_W;
+
+      // Snapshot the total minus the dragged column so we can recompute it
+      // cheaply on every mousemove (just one addition).
+      let totalRest = FIXED_PREFIX_W;
+      for (const id of columnIds) {
+        if (id !== colId) totalRest += sizingRef.current[id] ?? DEFAULT_COL_W;
+      }
+
+      const cssVar = `--dt-w-${colIdx}`;
+      document.documentElement.classList.add("is-col-resizing");
+
+      let lastWidth = startW;
+      const onMove = (ev: MouseEvent) => {
+        const next = Math.max(
+          MIN_COL_W,
+          Math.min(MAX_COL_W, startW + (ev.clientX - startX)),
+        );
+        if (next === lastWidth) return;
+        lastWidth = next;
+        el.style.setProperty(cssVar, `${next}px`);
+        el.style.setProperty("--dt-table-w", `${totalRest + next}px`);
+      };
+
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.documentElement.classList.remove("is-col-resizing");
+        sizingRef.current[colId] = lastWidth;
+        // Commit final width to React state so it persists across renders.
+        // Only one state update for the whole drag.
+        setColumnSizing((prev) => ({ ...prev, [colId]: lastWidth }));
+      };
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [columnIds, FIXED_PREFIX_W],
+  );
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -548,10 +641,6 @@ export function DataTable({
 
   const virtualRows = rowVirtualizer.getVirtualItems();
 
-  // Calculate total table width: fixed columns + resizable columns
-  const fixedColumnsWidth = (selectable ? 40 : 0) + 50; // checkbox (40) + row index (50)
-  const totalTableWidth = fixedColumnsWidth + table.getTotalSize();
-
   return (
     <div className={styles.container}>
       <div className={styles.mainArea}>
@@ -561,10 +650,10 @@ export function DataTable({
           tabIndex={-1}
           onKeyDown={handleTableKeyDown}
         >
-          <table className={styles.table} style={{ width: totalTableWidth }}>
+          <table className={styles.table}>
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} style={{ width: totalTableWidth }}>
+                <tr key={headerGroup.id}>
                   {selectable && (
                     <th className={styles.checkboxCell}>
                       <label className={styles.checkbox}>
@@ -587,12 +676,13 @@ export function DataTable({
                     </th>
                   )}
                   <th className={styles.rowIndex}>#</th>
-                  {headerGroup.headers.map((header) => {
+                  {headerGroup.headers.map((header, headerIdx) => {
                     const sortDirection = header.column.getIsSorted();
                     const columnMeta = header.column.columnDef.meta as
                       | { type: string }
                       | undefined;
                     const isNumericType = isNumericColumn(columnMeta?.type);
+                    const colId = header.column.id;
 
                     return (
                       <th
@@ -600,7 +690,7 @@ export function DataTable({
                         className={`${styles.sortableHeader} ${
                           isNumericType ? styles.headerRight : ""
                         }`}
-                        style={{ width: header.getSize() }}
+                        style={colWidthStyles[colId]}
                       >
                         <div
                           className={styles.headerContent}
@@ -624,15 +714,13 @@ export function DataTable({
                             )}
                           </span>
                         </div>
-                        {/* Column resize handle */}
+                        {/* Column resize handle — custom handler mutates CSS
+                            variables directly to avoid per-pixel re-renders. */}
                         <div
-                          onMouseDown={header.getResizeHandler()}
-                          onTouchStart={header.getResizeHandler()}
-                          className={`${styles.resizer} ${
-                            header.column.getIsResizing()
-                              ? styles.isResizing
-                              : ""
-                          }`}
+                          onMouseDown={(ev) =>
+                            handleResizeStart(colId, headerIdx, ev)
+                          }
+                          className={styles.resizer}
                         />
                       </th>
                     );
@@ -640,7 +728,7 @@ export function DataTable({
                 </tr>
               ))}
               {filtersVisible && filterActions && (
-                <tr style={{ width: totalTableWidth }}>
+                <tr>
                   {selectable && (
                     <th className={filterStyles.filterRowPlaceholder} />
                   )}
@@ -659,7 +747,7 @@ export function DataTable({
                       <th
                         key={`filter-${header.id}`}
                         className={filterStyles.filterCell}
-                        style={{ width: header.getSize() }}
+                        style={colWidthStyles[colId]}
                       >
                         <FilterCell
                           column={colId}
@@ -710,7 +798,7 @@ export function DataTable({
                       isOdd={virtualRow.index % 2 === 1}
                       selectable={selectable}
                       pagination={pagination}
-                      totalTableWidth={totalTableWidth}
+                      colWidthStyles={colWidthStyles}
                       onToggleSelection={toggleRowSelection}
                       selectedCellColumnId={
                         selectedCell?.rowIndex === virtualRow.index

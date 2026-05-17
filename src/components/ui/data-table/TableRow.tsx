@@ -11,7 +11,10 @@ interface TableRowProps {
   isOdd: boolean;
   selectable: boolean;
   pagination?: PaginationState;
-  totalTableWidth: number;
+  /** Stable per-column width styles keyed by columnId. The CSS var inside
+   *  is updated by the DataTable wrapper during resize, so the row never
+   *  re-renders on width changes. */
+  colWidthStyles: Record<string, React.CSSProperties>;
   onToggleSelection: (index: number) => void;
   selectedCellColumnId?: string | null;
   onCellClick?: (rowIndex: number, columnId: string) => void;
@@ -39,7 +42,7 @@ export const TableRow = memo(function TableRow({
   isOdd,
   selectable,
   pagination,
-  totalTableWidth,
+  colWidthStyles,
   onToggleSelection,
   selectedCellColumnId,
   onCellClick,
@@ -55,7 +58,6 @@ export const TableRow = memo(function TableRow({
         position: "absolute",
         top: 0,
         left: 0,
-        width: totalTableWidth,
         height: `${virtualRow.size}px`,
         transform: `translateY(${virtualRow.start}px)`,
       }}
@@ -94,7 +96,7 @@ export const TableRow = memo(function TableRow({
                   : styles.cellSelected
                 : cellClass
             }
-            style={{ width: cell.column.getSize() }}
+            style={colWidthStyles[columnId]}
             data-cell-row={virtualRow.index}
             data-cell-col={columnId}
             onClick={() => onCellClick?.(virtualRow.index, columnId)}

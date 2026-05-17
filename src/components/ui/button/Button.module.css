@@ -5,7 +5,7 @@
   gap: var(--space-2);
   border-radius: var(--radius-md);
   font-weight: var(--weight-medium);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   position: relative;

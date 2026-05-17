@@ -33,6 +33,10 @@
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   min-width: 100%;
+  /* Column widths live in CSS variables on the wrapper so that live drag
+     mutates a single element without re-rendering rows. Fallback width
+     keeps initial render sized before useLayoutEffect runs. */
+  width: var(--dt-table-w, max-content);
 }
 
 .table th {
@@ -44,6 +48,9 @@
   border-bottom: 2px solid var(--color-accent-primary);
   border-right: 1px solid var(--border-subtle);
   white-space: nowrap;
+  /* Header & cell widths are sized from per-column CSS vars set on the wrapper
+     during drag — avoids re-rendering every cell on each mousemove. */
+  box-sizing: border-box;
 }
 
 .table th:last-child {
@@ -52,7 +59,6 @@
 
 .sortableHeader {
   user-select: none;
-  transition: background var(--transition-fast);
   position: relative;
 }
 
@@ -140,6 +146,7 @@
 .table tbody tr {
   display: table;
   table-layout: fixed;
+  width: var(--dt-table-w, 100%);
   will-change: transform; /* GPU acceleration for smooth scrolling */
   contain: layout style paint; /* CSS containment for better perf */
 }
@@ -147,6 +154,7 @@
 .table thead tr {
   display: table;
   table-layout: fixed;
+  width: var(--dt-table-w, 100%);
 }
 
 .table td {
@@ -157,7 +165,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: background var(--transition-fast);
+  box-sizing: border-box;
+  /* No background transition: every cell would otherwise track an animation
+     state during scroll/resize, which is expensive on WebkitGTK. */
 }
 
 .table td:last-child {
@@ -299,7 +309,10 @@
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .pageBtn:hover:not(:disabled) {
@@ -436,7 +449,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
   color: var(--color-base-0);
 }
 
@@ -556,7 +571,9 @@
   border-radius: var(--radius-sm);
   color: var(--color-text-tertiary);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .sidebarCloseBtn:hover {
@@ -601,7 +618,10 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
   justify-content: flex-start;
 }
 
