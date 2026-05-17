@@ -43,6 +43,26 @@ impl PostgresDriver {
 ///
 /// For custom / unknown types (e.g. user-defined enums), the udt_name is
 /// returned as-is — Postgres will resolve it correctly.
+/// Builds a schema-qualified cast target for user-defined types (enums, domains, composites).
+/// Builtin types live in `pg_catalog` and resolve without qualification, so we use the
+/// canonical name from `pg_cast_type`. For everything else we must qualify with the
+/// schema where the type lives, because the user's `search_path` may not include it.
+///
+/// `udt_name_original` MUST be the original-case name from `information_schema.columns`
+/// — Postgres stores type names case-sensitively, so an enum created as `"EddMethod"`
+/// will not resolve as `eddmethod`.
+fn pg_cast_target(udt_name_upper: &str, udt_name_original: &str, udt_schema: &str) -> String {
+    match udt_name_upper {
+        "INT2" | "INT4" | "INT8" | "FLOAT4" | "FLOAT8" | "NUMERIC" | "BOOL" | "UUID" | "DATE"
+        | "TIME" | "TIMETZ" | "TIMESTAMP" | "TIMESTAMPTZ" | "INTERVAL" | "INET" | "CIDR"
+        | "MACADDR" | "JSON" | "JSONB" | "BYTEA" | "MONEY" | "OID" | "TEXT" | "VARCHAR"
+        | "CHAR" | "BPCHAR" | "NAME" | "CITEXT" => pg_cast_type(udt_name_upper),
+        // User-defined type — qualify with the schema where the type lives, and use
+        // the original-case name so quoted identifiers match.
+        _ => format!("\"{}\".\"{}\"", udt_schema, udt_name_original),
+    }
+}
+
 fn pg_cast_type(udt_name: &str) -> String {
     match udt_name {
         // Integer types
@@ -721,10 +741,12 @@ impl DatabaseDriver for PostgresDriver {
             return Err("Invalid schema name".to_string());
         }
 
-        // Fetch column metadata
+        // Fetch column metadata. We grab `udt_schema` too so that casts to user-defined
+        // types (enums etc.) can be schema-qualified — otherwise Postgres errors with
+        // "type \"foo\" does not exist" when the type's schema isn't on search_path.
         let column_rows = sqlx::query(
             r#"
-            SELECT column_name, udt_name, ordinal_position
+            SELECT column_name, udt_name, udt_schema, ordinal_position
             FROM information_schema.columns
             WHERE table_schema = $1 AND table_name = $2
             ORDER BY ordinal_position
@@ -754,6 +776,19 @@ impl DatabaseDriver for PostgresDriver {
         let column_type_map: std::collections::HashMap<&str, &str> = ordered_columns
             .iter()
             .map(|c| (c.name.as_str(), c.data_type.as_str()))
+            .collect();
+
+        // Parallel map: column_name -> (udt_name_original_case, udt_schema). We need the
+        // original-case udt_name because user-defined type names are case-sensitive in
+        // pg_type — uppercasing/lowercasing for display would break casts.
+        let column_udt_map: std::collections::HashMap<String, (String, String)> = column_rows
+            .iter()
+            .map(|r| {
+                let name: String = r.get("column_name");
+                let udt_name: String = r.get("udt_name");
+                let udt_schema: String = r.get("udt_schema");
+                (name, (udt_name, udt_schema))
+            })
             .collect();
 
         // Build valid column name set for validation
@@ -820,7 +855,11 @@ impl DatabaseDriver for PostgresDriver {
                         if is_text_type {
                             where_clauses.push(format!("{} = ${}", col_quoted, param_index));
                         } else {
-                            let cast = pg_cast_type(col_type);
+                            let (udt_name_orig, udt_schema) = column_udt_map
+                                .get(filter.column.as_str())
+                                .map(|(n, s)| (n.as_str(), s.as_str()))
+                                .unwrap_or((col_type, "pg_catalog"));
+                            let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
                             where_clauses.push(format!(
                                 "{} = ${}::{}",
                                 col_quoted, param_index, cast
@@ -835,7 +874,11 @@ impl DatabaseDriver for PostgresDriver {
                         if is_text_type {
                             where_clauses.push(format!("{} != ${}", col_quoted, param_index));
                         } else {
-                            let cast = pg_cast_type(col_type);
+                            let (udt_name_orig, udt_schema) = column_udt_map
+                                .get(filter.column.as_str())
+                                .map(|(n, s)| (n.as_str(), s.as_str()))
+                                .unwrap_or((col_type, "pg_catalog"));
+                            let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
                             where_clauses.push(format!(
                                 "{} != ${}::{}",
                                 col_quoted, param_index, cast
@@ -850,7 +893,11 @@ impl DatabaseDriver for PostgresDriver {
                         if is_text_type {
                             where_clauses.push(format!("{} > ${}", col_quoted, param_index));
                         } else {
-                            let cast = pg_cast_type(col_type);
+                            let (udt_name_orig, udt_schema) = column_udt_map
+                                .get(filter.column.as_str())
+                                .map(|(n, s)| (n.as_str(), s.as_str()))
+                                .unwrap_or((col_type, "pg_catalog"));
+                            let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
                             where_clauses.push(format!(
                                 "{} > ${}::{}",
                                 col_quoted, param_index, cast
@@ -865,7 +912,11 @@ impl DatabaseDriver for PostgresDriver {
                         if is_text_type {
                             where_clauses.push(format!("{} < ${}", col_quoted, param_index));
                         } else {
-                            let cast = pg_cast_type(col_type);
+                            let (udt_name_orig, udt_schema) = column_udt_map
+                                .get(filter.column.as_str())
+                                .map(|(n, s)| (n.as_str(), s.as_str()))
+                                .unwrap_or((col_type, "pg_catalog"));
+                            let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
                             where_clauses.push(format!(
                                 "{} < ${}::{}",
                                 col_quoted, param_index, cast
@@ -880,7 +931,11 @@ impl DatabaseDriver for PostgresDriver {
                         if is_text_type {
                             where_clauses.push(format!("{} >= ${}", col_quoted, param_index));
                         } else {
-                            let cast = pg_cast_type(col_type);
+                            let (udt_name_orig, udt_schema) = column_udt_map
+                                .get(filter.column.as_str())
+                                .map(|(n, s)| (n.as_str(), s.as_str()))
+                                .unwrap_or((col_type, "pg_catalog"));
+                            let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
                             where_clauses.push(format!(
                                 "{} >= ${}::{}",
                                 col_quoted, param_index, cast
@@ -895,7 +950,11 @@ impl DatabaseDriver for PostgresDriver {
                         if is_text_type {
                             where_clauses.push(format!("{} <= ${}", col_quoted, param_index));
                         } else {
-                            let cast = pg_cast_type(col_type);
+                            let (udt_name_orig, udt_schema) = column_udt_map
+                                .get(filter.column.as_str())
+                                .map(|(n, s)| (n.as_str(), s.as_str()))
+                                .unwrap_or((col_type, "pg_catalog"));
+                            let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
                             where_clauses.push(format!(
                                 "{} <= ${}::{}",
                                 col_quoted, param_index, cast
@@ -955,6 +1014,10 @@ impl DatabaseDriver for PostgresDriver {
             "SELECT * FROM {}{} LIMIT {} OFFSET {}",
             qualified_table, where_sql, limit, offset
         );
+        eprintln!(
+            "[get_filtered_table_data] SQL: {} | binds: {:?}",
+            data_sql, bind_values
+        );
         let mut data_query = sqlx::query(&data_sql);
         for val in &bind_values {
             data_query = data_query.bind(val);
@@ -962,7 +1025,10 @@ impl DatabaseDriver for PostgresDriver {
         let rows = data_query
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                eprintln!("[get_filtered_table_data] error: {}", e);
+                e.to_string()
+            })?;
 
         let (results, columns_info) = decode::decode_rows(&rows, Some(ordered_columns));
 
