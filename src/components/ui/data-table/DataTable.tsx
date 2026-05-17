@@ -23,6 +23,7 @@ import {
   type ColumnDef,
   type SortingState,
   type ColumnSizingState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import styles from "./DataTable.module.css";
@@ -45,6 +46,7 @@ import {
   type ColumnFilter,
 } from "./ColumnFilter";
 import filterStyles from "./ColumnFilter/ColumnFilter.module.css";
+import { ColumnVisibilityMenu, useColumnVisibility } from "./ColumnVisibility";
 
 export interface PaginationState {
   page: number;
@@ -95,6 +97,11 @@ interface DataTableProps {
   tableName?: string;
   schemaName?: string;
   filterActions?: FilterActions;
+  /**
+   * When set, column visibility is persisted in localStorage under this key.
+   * When omitted, visibility is in-memory only.
+   */
+  columnVisibilityKey?: string;
 }
 
 export function DataTable({
@@ -111,6 +118,7 @@ export function DataTable({
   tableName,
   schemaName,
   filterActions,
+  columnVisibilityKey,
 }: DataTableProps) {
   const toastContext = useToast();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -131,6 +139,8 @@ export function DataTable({
     value: string;
   } | null>(null);
   const [filtersVisible, setFiltersVisible] = useState(false);
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility(columnVisibilityKey);
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -278,23 +288,42 @@ export function DataTable({
     });
   }, [data, columnInfo, columnTypeMap]);
 
-  const columnIds = useMemo(
+  // All column ids in their declaration order. Used by the visibility menu.
+  const allColumnIds = useMemo(
     () => columns.map((col) => (col as { accessorKey: string }).accessorKey),
     [columns],
   );
 
+  // Only visible column ids. Drives layout (CSS widths, filter row),
+  // keyboard navigation, and copy/clipboard operations so hidden columns
+  // never appear in user output.
+  const columnIds = useMemo(
+    () => allColumnIds.filter((id) => columnVisibility[id] !== false),
+    [allColumnIds, columnVisibility],
+  );
+
   // Live column-resize is handled by us via CSS variables (see resize handler
-   // below). TanStack's built-in resize is disabled because it routes every
-   // mousemove through React state, which re-renders all visible rows.
+  // below). TanStack's built-in resize is disabled because it routes every
+  // mousemove through React state, which re-renders all visible rows.
   const table = useReactTable({
     data,
     columns,
     state: {
       sorting,
       columnSizing,
+      columnVisibility: columnVisibility as VisibilityState,
     },
     onSortingChange: setSorting,
     onColumnSizingChange: setColumnSizing,
+    onColumnVisibilityChange: (updater) => {
+      setColumnVisibility((prev) =>
+        typeof updater === "function"
+          ? (updater as (old: VisibilityState) => VisibilityState)(
+              prev as VisibilityState,
+            )
+          : updater,
+      );
+    },
     enableColumnResizing: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -816,6 +845,13 @@ export function DataTable({
           </table>
         </div>
         <div className={styles.tableFooter}>
+          {allColumnIds.length > 0 && (
+            <ColumnVisibilityMenu
+              columns={allColumnIds.map((id) => ({ id, label: id }))}
+              visibility={columnVisibility}
+              onChange={setColumnVisibility}
+            />
+          )}
           {filterActions && (
             <FilterBar
               visible={filtersVisible}

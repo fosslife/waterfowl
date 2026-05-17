@@ -368,6 +368,7 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
         tableName={tab.tableName}
         schemaName={tab.schema}
         filterActions={filterActions}
+        columnVisibilityKey={`${connectionId}:${tab.schema}:${tab.tableName}`}
       />
 
       <ConfirmDialog
