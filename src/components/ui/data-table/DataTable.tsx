@@ -47,6 +47,11 @@ import {
 } from "./ColumnFilter";
 import filterStyles from "./ColumnFilter/ColumnFilter.module.css";
 import { ColumnVisibilityMenu, useColumnVisibility } from "./ColumnVisibility";
+import {
+  ExportDialog,
+  type ExportDialogSource,
+} from "@components/export/ExportDialog";
+import { Download, RefreshCw } from "lucide-react";
 
 export interface PaginationState {
   page: number;
@@ -102,6 +107,23 @@ interface DataTableProps {
    * When omitted, visibility is in-memory only.
    */
   columnVisibilityKey?: string;
+  /**
+   * When provided, an "Export" button is shown in the footer and
+   * "Export Rows" is added to the selection sidebar. Omit to disable
+   * export entirely (e.g. for ad-hoc query results we can't address by
+   * table name).
+   */
+  exportConfig?: {
+    source: ExportDialogSource;
+    /** Active filters used by the "filtered" scope. Defaults to []. */
+    activeFilters?: ColumnFilter[];
+    /** Total row count of the table/view (label only). */
+    totalCount?: number;
+    /** Total matching rows when filters are active (label only). */
+    filteredCount?: number;
+  };
+  /** When provided, a refresh button is shown in the footer. */
+  onRefresh?: () => void;
 }
 
 export function DataTable({
@@ -119,6 +141,8 @@ export function DataTable({
   schemaName,
   filterActions,
   columnVisibilityKey,
+  exportConfig,
+  onRefresh,
 }: DataTableProps) {
   const toastContext = useToast();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -141,6 +165,12 @@ export function DataTable({
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility(columnVisibilityKey);
+  // null when the dialog is closed; "full" for the footer button and
+  // "selection" when invoked from the selection sidebar (locks scope and
+  // hides the page/filtered/all picker).
+  const [exportMode, setExportMode] = useState<"full" | "selection" | null>(
+    null,
+  );
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -860,6 +890,33 @@ export function DataTable({
               onClearAll={clearAllFilters}
             />
           )}
+          {onRefresh && (
+            <button
+              type="button"
+              className={styles.footerBtn}
+              onClick={onRefresh}
+              disabled={isLoading}
+              title="Refresh data"
+              aria-label="Refresh"
+            >
+              <RefreshCw
+                size={13}
+                className={isLoading ? styles.spin : undefined}
+              />
+              <span>Refresh</span>
+            </button>
+          )}
+          {exportConfig && (
+            <button
+              type="button"
+              className={styles.footerBtn}
+              onClick={() => setExportMode("full")}
+              title="Export"
+            >
+              <Download size={13} />
+              <span>Export</span>
+            </button>
+          )}
           {pagination ? (
             <PaginationControls
               pagination={pagination}
@@ -888,6 +945,9 @@ export function DataTable({
                 selectionActions?.onDeleteRows
                   ? () => selectionActions.onDeleteRows?.(getSelectedRows())
                   : undefined
+              }
+              onExport={
+                exportConfig ? () => setExportMode("selection") : undefined
               }
             />
           )}
@@ -983,6 +1043,25 @@ export function DataTable({
           />,
           document.body,
         )}
+
+      {exportConfig && exportMode !== null && (
+        <ExportDialog
+          isOpen
+          onClose={() => setExportMode(null)}
+          source={exportConfig.source}
+          columns={columnIds.map((id) => ({
+            name: id,
+            pgType: columnTypeMap[id],
+          }))}
+          pageRows={data}
+          activeFilters={exportConfig.activeFilters ?? []}
+          totalCount={exportConfig.totalCount}
+          filteredCount={exportConfig.filteredCount}
+          selectedRows={
+            exportMode === "selection" ? getSelectedRows() : undefined
+          }
+        />
+      )}
     </div>
   );
 }

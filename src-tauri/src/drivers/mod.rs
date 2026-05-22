@@ -9,11 +9,16 @@
 
 pub mod postgres;
 
+pub use postgres::StreamProgress;
+
 use crate::types::{
-    ColumnFilter, ConnectionConfig, DatabaseInfo, EnumValues, FunctionInfo, PaginatedTableData,
-    QueryResult, SchemaObjects, SequenceInfo, TableStructure,
+    ColumnFilter, ColumnInfo, ConnectionConfig, DatabaseInfo, EnumValues, FunctionInfo,
+    PaginatedTableData, QueryResult, SchemaObjects, SequenceInfo, TableStructure,
 };
 use async_trait::async_trait;
+use serde_json::Value;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 /// Trait that all database drivers must implement.
 ///
@@ -132,6 +137,40 @@ impl DriverConnection {
         match config.driver.to_lowercase().as_str() {
             "postgres" | "postgresql" => postgres::PostgresDriver::test_connection(config).await,
             other => Err(format!("Unsupported database driver: {}", other)),
+        }
+    }
+
+    /// Stream the entire (optionally filtered) result of a table/view through
+    /// `on_row`, decoding values lazily without buffering the result set.
+    /// See `PostgresDriver::stream_table_data` for callback semantics.
+    /// Kept off the `DatabaseDriver` trait because the generic callback
+    /// parameter makes the trait non-object-safe.
+    pub async fn stream_table_data<F>(
+        &self,
+        table: &str,
+        schema: &str,
+        is_table: bool,
+        filters: &[ColumnFilter],
+        cancel: Arc<AtomicBool>,
+        on_progress: impl FnMut(StreamProgress) + Send,
+        on_row: F,
+    ) -> Result<u64, String>
+    where
+        F: FnMut(&[Value], &[ColumnInfo]) -> Result<(), String> + Send,
+    {
+        match self {
+            DriverConnection::Postgres(d) => {
+                d.stream_table_data(
+                    table,
+                    schema,
+                    is_table,
+                    filters,
+                    cancel,
+                    on_progress,
+                    on_row,
+                )
+                .await
+            }
         }
     }
 }

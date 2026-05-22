@@ -88,6 +88,10 @@ export function ViewPanel({ connectionId, tab }: ViewPanelProps) {
           Read-Only View
         </span>
       </div>
+      {/* TODO: wire exportConfig here (mirror TablePanel) so views get
+          the same Export button + selection-sidebar action. Use
+          objectType: "view" in the source. Views may not have filters
+          today — pass activeFilters: [] until filter support is added. */}
       <DataTable
         data={viewData}
         columnInfo={viewColumnInfo}
@@ -103,6 +107,14 @@ export function ViewPanel({ connectionId, tab }: ViewPanelProps) {
         }}
         onPageSizeChange={(newPageSize) => {
           fetchViewData(tab.viewName, tab.schema, 0, newPageSize);
+        }}
+        onRefresh={() => {
+          fetchViewData(
+            tab.viewName,
+            tab.schema,
+            viewPagination.page,
+            viewPagination.pageSize,
+          );
         }}
       />
     </>

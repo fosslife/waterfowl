@@ -19,6 +19,7 @@
 
 mod commands;
 mod drivers;
+mod exporters;
 mod state;
 mod types;
 
@@ -30,6 +31,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .manage(AppState::new())
         .plugin(tauri_plugin_opener::init())
@@ -51,6 +53,10 @@ pub fn run() {
             commands::get_table_structure,
             commands::get_enum_values,
             commands::execute_query,
+            // Export commands
+            commands::export_table_streaming,
+            commands::cancel_export,
+            commands::write_text_file,
         ])
         .setup(|app| {
             let process_arg: Vec<String> = env::args().collect();

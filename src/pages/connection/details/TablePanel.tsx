@@ -67,6 +67,13 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
     pageSize: DEFAULT_PAGE_SIZE,
     totalCount: 0,
   });
+  // Unfiltered row count, cached from the most recent fetch with no active
+  // filters. Used to label the "Entire table" export scope correctly when
+  // filters are applied (pagination.totalCount then reflects the filtered
+  // count, not the table total).
+  const [unfilteredTotalCount, setUnfilteredTotalCount] = useState<
+    number | undefined
+  >(undefined);
 
   // Filter state
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
@@ -165,6 +172,9 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
           pageSize,
           totalCount: result.total_count,
         }));
+        if (!useFiltered) {
+          setUnfilteredTotalCount(result.total_count);
+        }
         if (structure) {
           setPrimaryKeyColumns(
             structure.columns
@@ -196,6 +206,16 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
       fetchEnumValues(columnInfo);
     }
   }, [columnInfo, fetchEnumValues]);
+
+  const handleRefresh = useCallback(() => {
+    fetchTableData(
+      tab.tableName,
+      tab.schema,
+      pagination.page,
+      pagination.pageSize,
+      activeFilters,
+    );
+  }, [tab, pagination.page, pagination.pageSize, activeFilters, fetchTableData]);
 
   const handlePageChange = useCallback(
     (newPage: number) => {
@@ -362,6 +382,7 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
         pagination={pagination}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        onRefresh={handleRefresh}
         selectable
         selectionActions={selectionActions}
         cellActions={cellActions}
@@ -369,6 +390,24 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
         schemaName={tab.schema}
         filterActions={filterActions}
         columnVisibilityKey={`${connectionId}:${tab.schema}:${tab.tableName}`}
+        exportConfig={{
+          source: {
+            connectionId,
+            objectType: "table",
+            name: tab.tableName,
+            schema: tab.schema,
+          },
+          activeFilters,
+          // pagination.totalCount reflects the filtered count when filters
+          // are active, so fall back to the cached unfiltered total for the
+          // "Entire table" label.
+          totalCount:
+            activeFilters.length > 0
+              ? unfilteredTotalCount
+              : pagination.totalCount,
+          filteredCount:
+            activeFilters.length > 0 ? pagination.totalCount : undefined,
+        }}
       />
 
       <ConfirmDialog

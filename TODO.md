@@ -7,9 +7,9 @@ Row selection — bulk export
 Medium Priority:
 ~~Filtering — Per-column filters (especially useful for VARCHAR/text)~~
 Global search — Ctrl+F style find within results
-Column visibility toggle — Hide columns you don't need
+~~Column visibility toggle — Hide columns you don't need~~
 ~~Inline editing — Double-click to edit cell values~~
-Export options — CSV, JSON, SQL INSERT statements
+~~Export options — CSV~~, JSON, SQL INSERT statements
 Server-side pagination — For queries returning 100k+ rows
 Nice to Have:
 Column pinning — Freeze ID/key columns on the left

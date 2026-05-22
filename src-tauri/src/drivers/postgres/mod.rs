@@ -1,6 +1,9 @@
 //! PostgreSQL database driver implementation.
 
 mod decode;
+mod stream;
+
+pub use stream::StreamProgress;
 
 use async_trait::async_trait;
 use sqlx::postgres::{PgPool, PgPoolOptions};

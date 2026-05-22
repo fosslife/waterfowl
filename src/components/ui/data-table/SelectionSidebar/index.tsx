@@ -1,17 +1,19 @@
 import { memo } from "react";
 import styles from "../DataTable.module.css";
-import { X, Copy, Trash2 } from "lucide-react";
+import { X, Copy, Trash2, Download } from "lucide-react";
 
 export const SelectionSidebarPanel = memo(function SelectionSidebarPanel({
   selectedCount,
   onClear,
   onCopy,
   onDelete,
+  onExport,
 }: {
   selectedCount: number;
   onClear: () => void;
   onCopy?: () => void;
   onDelete?: () => void;
+  onExport?: () => void;
 }) {
   return (
     <div className={styles.sidebarSection}>
@@ -40,6 +42,16 @@ export const SelectionSidebarPanel = memo(function SelectionSidebarPanel({
           >
             <Copy size={16} />
             <span>Copy Rows</span>
+          </button>
+        )}
+        {onExport && (
+          <button
+            className={styles.sidebarBtn}
+            onClick={onExport}
+            title="Export selected rows"
+          >
+            <Download size={16} />
+            <span>Export Rows</span>
           </button>
         )}
         {onDelete && (

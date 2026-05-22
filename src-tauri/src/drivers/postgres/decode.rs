@@ -9,6 +9,42 @@ use sqlx::{Column, Row, TypeInfo, ValueRef};
 
 use crate::types::ColumnInfo;
 
+/// Decode a single row into a pre-allocated `Vec<Value>` indexed by the
+/// caller-supplied column order. `out` is cleared and refilled — caller can
+/// reuse the same buffer across rows to avoid per-row allocation.
+///
+/// Used by the streaming export path which walks the row cursor one row at
+/// a time and serializes each decoded row immediately.
+pub fn decode_pg_row_values(row: &PgRow, columns: &[ColumnInfo], out: &mut Vec<Value>) {
+    out.clear();
+    out.reserve(columns.len());
+    // Decoding by ordinal works because `columns` was built from
+    // information_schema.columns in ordinal order and the SELECT * preserves
+    // that order.
+    for (idx, col) in columns.iter().enumerate() {
+        let value_ref = match row.try_get_raw(idx) {
+            Ok(v) => v,
+            Err(_) => {
+                out.push(Value::Null);
+                continue;
+            }
+        };
+        if value_ref.is_null() {
+            out.push(Value::Null);
+            continue;
+        }
+        // Use the source-of-truth type name from the row's column metadata
+        // (it matches what the live decoder uses), not the information_schema
+        // udt_name which may differ in casing for builtin types.
+        let type_name = row
+            .columns()
+            .get(idx)
+            .map(|c| c.type_info().name())
+            .unwrap_or(col.data_type.as_str());
+        out.push(decode_pg_value(row, idx, type_name));
+    }
+}
+
 /// Decode a vector of PgRows into JSON-compatible maps and extract column info.
 /// If `column_order` is provided, columns will be returned in that order.
 /// Otherwise, columns are extracted from the result set (may not preserve schema order).
