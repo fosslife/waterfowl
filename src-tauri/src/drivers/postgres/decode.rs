@@ -192,9 +192,7 @@ fn decode_pg_value(row: &PgRow, ordinal: usize, type_name: &str) -> Value {
         "TIMETZ" => {
             // Time with timezone - decode as PgTimeTz
             match row.try_get::<sqlx::postgres::types::PgTimeTz, _>(ordinal) {
-                Ok(t) => {
-                    Value::String(format!("{}{:+}", t.time, t.offset.whole_seconds() / 3600))
-                }
+                Ok(t) => Value::String(format!("{}{:+}", t.time, t.offset.whole_seconds() / 3600)),
                 Err(_) => Value::String("[TIMETZ]".to_string()),
             }
         }

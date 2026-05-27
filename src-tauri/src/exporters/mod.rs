@@ -24,11 +24,7 @@ use std::io::{self, Write};
 pub trait Exporter: Send {
     /// Write the header row (column names). Called once before any rows.
     /// Implementations may no-op (e.g. if the user disabled headers).
-    fn write_header(
-        &mut self,
-        columns: &[ColumnInfo],
-        w: &mut dyn Write,
-    ) -> io::Result<()>;
+    fn write_header(&mut self, columns: &[ColumnInfo], w: &mut dyn Write) -> io::Result<()>;
 
     /// Write a single decoded row. `values[i]` corresponds to `columns[i]`.
     /// Called once per row.
@@ -51,10 +47,7 @@ pub trait Exporter: Send {
 ///
 /// `options` is `serde_json::Value` so each exporter can define its own
 /// schema without leaking type bounds through the trait. v1 only knows CSV.
-pub fn create_exporter(
-    format_id: &str,
-    options: &Value,
-) -> Result<Box<dyn Exporter>, String> {
+pub fn create_exporter(format_id: &str, options: &Value) -> Result<Box<dyn Exporter>, String> {
     match format_id {
         "csv" => {
             let opts: csv::CsvOptions = serde_json::from_value(options.clone())

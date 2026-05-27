@@ -1,7 +1,7 @@
 {
   "name": "waterfowl",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "packageManager": "pnpm@11.2.2",
   "scripts": {
@@ -28,7 +28,9 @@
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-process": "~2.3.1",
     "@tauri-apps/plugin-sql": "~2.4.0",
+    "@tauri-apps/plugin-updater": "~2.10.1",
     "@tauri-apps/plugin-window-state": "~2.4.1",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",

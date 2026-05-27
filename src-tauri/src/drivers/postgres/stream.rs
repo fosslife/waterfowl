@@ -104,8 +104,7 @@ impl PostgresDriver {
         filters: &[ColumnFilter],
         schema: &FilterSchema,
     ) -> (String, Vec<String>) {
-        let valid_columns: HashSet<&str> =
-            schema.type_map.keys().map(|s| s.as_str()).collect();
+        let valid_columns: HashSet<&str> = schema.type_map.keys().map(|s| s.as_str()).collect();
 
         let mut clauses: Vec<String> = Vec::new();
         let mut binds: Vec<String> = Vec::new();

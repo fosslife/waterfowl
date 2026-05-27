@@ -82,8 +82,7 @@ pub async fn export_table_streaming(
 
     // 64 KiB buffer trades a little memory for many fewer syscalls on large
     // exports. The OS page cache absorbs the writes; we just batch them.
-    let file = File::create(&dest_path)
-        .map_err(|e| format!("create {}: {}", dest_path, e))?;
+    let file = File::create(&dest_path).map_err(|e| format!("create {}: {}", dest_path, e))?;
     let writer = BufWriter::with_capacity(64 * 1024, file);
 
     // Progress emitter — moved into the on_progress closure. Cloned per event

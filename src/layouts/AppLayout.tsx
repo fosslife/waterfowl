@@ -141,7 +141,7 @@ export function AppLayout() {
             <Settings size={16} />
             {!isCollapsed && <span>Settings</span>}
           </button>
-          {!isCollapsed && <div className={styles.version}>v0.1.0</div>}
+          {!isCollapsed && <div className={styles.version}>v0.2.0</div>}
         </div>
       </aside>
 

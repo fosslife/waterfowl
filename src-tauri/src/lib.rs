@@ -23,13 +23,15 @@ mod exporters;
 mod state;
 mod types;
 
-use std::env;
 use state::AppState;
+use std::env;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::new().build())
@@ -61,8 +63,8 @@ pub fn run() {
         .setup(|app| {
             let process_arg: Vec<String> = env::args().collect();
             if process_arg.contains(&"--debug".to_string()) {
-            // in prod build, if --debug is passed, open devtools
-            app.get_webview_window("main").unwrap().open_devtools();
+                // in prod build, if --debug is passed, open devtools
+                app.get_webview_window("main").unwrap().open_devtools();
             }
 
             // open devtools in dev build anyway

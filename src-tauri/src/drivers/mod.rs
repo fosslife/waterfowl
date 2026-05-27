@@ -279,7 +279,9 @@ impl DatabaseDriver for DriverConnection {
     ) -> Result<PaginatedTableData, String> {
         match self {
             DriverConnection::Postgres(driver) => {
-                driver.get_filtered_table_data(table, schema, limit, offset, filters).await
+                driver
+                    .get_filtered_table_data(table, schema, limit, offset, filters)
+                    .await
             }
         }
     }

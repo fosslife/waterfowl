@@ -129,11 +129,7 @@ impl CsvExporter {
 }
 
 impl Exporter for CsvExporter {
-    fn write_header(
-        &mut self,
-        columns: &[ColumnInfo],
-        w: &mut dyn Write,
-    ) -> io::Result<()> {
+    fn write_header(&mut self, columns: &[ColumnInfo], w: &mut dyn Write) -> io::Result<()> {
         if !self.opts.include_header {
             return Ok(());
         }
@@ -209,11 +205,7 @@ mod tests {
 
     #[test]
     fn quotes_when_delimiter_present() {
-        let out = export(
-            CsvOptions::default(),
-            &[col("a")],
-            &[vec![json!("x,y")]],
-        );
+        let out = export(CsvOptions::default(), &[col("a")], &[vec![json!("x,y")]]);
         assert_eq!(out, "a\r\n\"x,y\"\r\n");
     }
 
@@ -294,11 +286,7 @@ mod tests {
 
     #[test]
     fn nested_values_serialize_as_json() {
-        let out = export(
-            CsvOptions::default(),
-            &[col("a")],
-            &[vec![json!({"k": 1})]],
-        );
+        let out = export(CsvOptions::default(), &[col("a")], &[vec![json!({"k": 1})]]);
         // Object gets JSON-serialized and quoted because it contains a comma.
         assert_eq!(out, "a\r\n\"{\"\"k\"\":1}\"\r\n");
     }

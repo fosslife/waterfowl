@@ -217,10 +217,7 @@ impl DatabaseDriver for PostgresDriver {
         .fetch_one(&self.pool)
         .await
         .map_err(|e| e.to_string())?;
-        let total_count: i64 = count_row
-            .try_get::<i64, _>("estimate")
-            .unwrap_or(0)
-            .max(0);
+        let total_count: i64 = count_row.try_get::<i64, _>("estimate").unwrap_or(0).max(0);
 
         // Fetch paginated data
         let rows = sqlx::query(&format!(
@@ -795,7 +792,8 @@ impl DatabaseDriver for PostgresDriver {
             .collect();
 
         // Build valid column name set for validation
-        let valid_columns: std::collections::HashSet<&str> = column_type_map.keys().copied().collect();
+        let valid_columns: std::collections::HashSet<&str> =
+            column_type_map.keys().copied().collect();
 
         // Build WHERE clause from filters using parameterized queries
         let mut where_clauses: Vec<String> = Vec::new();
@@ -829,24 +827,21 @@ impl DatabaseDriver for PostgresDriver {
                 // pattern matching anyway, and the user explicitly wants string matching)
                 FilterOperator::Contains => {
                     if let Some(ref val) = filter.value {
-                        where_clauses
-                            .push(format!("{}::text ILIKE ${}", col_quoted, param_index));
+                        where_clauses.push(format!("{}::text ILIKE ${}", col_quoted, param_index));
                         bind_values.push(format!("%{}%", val));
                         param_index += 1;
                     }
                 }
                 FilterOperator::StartsWith => {
                     if let Some(ref val) = filter.value {
-                        where_clauses
-                            .push(format!("{}::text ILIKE ${}", col_quoted, param_index));
+                        where_clauses.push(format!("{}::text ILIKE ${}", col_quoted, param_index));
                         bind_values.push(format!("{}%", val));
                         param_index += 1;
                     }
                 }
                 FilterOperator::EndsWith => {
                     if let Some(ref val) = filter.value {
-                        where_clauses
-                            .push(format!("{}::text ILIKE ${}", col_quoted, param_index));
+                        where_clauses.push(format!("{}::text ILIKE ${}", col_quoted, param_index));
                         bind_values.push(format!("%{}", val));
                         param_index += 1;
                     }
@@ -863,10 +858,8 @@ impl DatabaseDriver for PostgresDriver {
                                 .map(|(n, s)| (n.as_str(), s.as_str()))
                                 .unwrap_or((col_type, "pg_catalog"));
                             let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
-                            where_clauses.push(format!(
-                                "{} = ${}::{}",
-                                col_quoted, param_index, cast
-                            ));
+                            where_clauses
+                                .push(format!("{} = ${}::{}", col_quoted, param_index, cast));
                         }
                         bind_values.push(val.clone());
                         param_index += 1;
@@ -882,10 +875,8 @@ impl DatabaseDriver for PostgresDriver {
                                 .map(|(n, s)| (n.as_str(), s.as_str()))
                                 .unwrap_or((col_type, "pg_catalog"));
                             let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
-                            where_clauses.push(format!(
-                                "{} != ${}::{}",
-                                col_quoted, param_index, cast
-                            ));
+                            where_clauses
+                                .push(format!("{} != ${}::{}", col_quoted, param_index, cast));
                         }
                         bind_values.push(val.clone());
                         param_index += 1;
@@ -901,10 +892,8 @@ impl DatabaseDriver for PostgresDriver {
                                 .map(|(n, s)| (n.as_str(), s.as_str()))
                                 .unwrap_or((col_type, "pg_catalog"));
                             let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
-                            where_clauses.push(format!(
-                                "{} > ${}::{}",
-                                col_quoted, param_index, cast
-                            ));
+                            where_clauses
+                                .push(format!("{} > ${}::{}", col_quoted, param_index, cast));
                         }
                         bind_values.push(val.clone());
                         param_index += 1;
@@ -920,10 +909,8 @@ impl DatabaseDriver for PostgresDriver {
                                 .map(|(n, s)| (n.as_str(), s.as_str()))
                                 .unwrap_or((col_type, "pg_catalog"));
                             let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
-                            where_clauses.push(format!(
-                                "{} < ${}::{}",
-                                col_quoted, param_index, cast
-                            ));
+                            where_clauses
+                                .push(format!("{} < ${}::{}", col_quoted, param_index, cast));
                         }
                         bind_values.push(val.clone());
                         param_index += 1;
@@ -939,10 +926,8 @@ impl DatabaseDriver for PostgresDriver {
                                 .map(|(n, s)| (n.as_str(), s.as_str()))
                                 .unwrap_or((col_type, "pg_catalog"));
                             let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
-                            where_clauses.push(format!(
-                                "{} >= ${}::{}",
-                                col_quoted, param_index, cast
-                            ));
+                            where_clauses
+                                .push(format!("{} >= ${}::{}", col_quoted, param_index, cast));
                         }
                         bind_values.push(val.clone());
                         param_index += 1;
@@ -958,10 +943,8 @@ impl DatabaseDriver for PostgresDriver {
                                 .map(|(n, s)| (n.as_str(), s.as_str()))
                                 .unwrap_or((col_type, "pg_catalog"));
                             let cast = pg_cast_target(col_type, udt_name_orig, udt_schema);
-                            where_clauses.push(format!(
-                                "{} <= ${}::{}",
-                                col_quoted, param_index, cast
-                            ));
+                            where_clauses
+                                .push(format!("{} <= ${}::{}", col_quoted, param_index, cast));
                         }
                         bind_values.push(val.clone());
                         param_index += 1;
@@ -994,10 +977,7 @@ impl DatabaseDriver for PostgresDriver {
             .fetch_one(&self.pool)
             .await
             .map_err(|e| e.to_string())?;
-            count_row
-                .try_get::<i64, _>("estimate")
-                .unwrap_or(0)
-                .max(0)
+            count_row.try_get::<i64, _>("estimate").unwrap_or(0).max(0)
         } else {
             // Filters applied — exact count is needed
             let count_sql = format!("SELECT COUNT(*) FROM {}{}", qualified_table, where_sql);
@@ -1025,13 +1005,10 @@ impl DatabaseDriver for PostgresDriver {
         for val in &bind_values {
             data_query = data_query.bind(val);
         }
-        let rows = data_query
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| {
-                eprintln!("[get_filtered_table_data] error: {}", e);
-                e.to_string()
-            })?;
+        let rows = data_query.fetch_all(&self.pool).await.map_err(|e| {
+            eprintln!("[get_filtered_table_data] error: {}", e);
+            e.to_string()
+        })?;
 
         let (results, columns_info) = decode::decode_rows(&rows, Some(ordered_columns));
 
