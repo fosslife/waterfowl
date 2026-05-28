@@ -56,7 +56,7 @@ import {
   ExportDialog,
   type ExportDialogSource,
 } from "@components/export/ExportDialog";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, RotateCcw } from "lucide-react";
 
 export interface PaginationState {
   page: number;
@@ -257,6 +257,36 @@ export function DataTable({
   const clearCellSelection = useCallback(() => {
     setSelectedCell(null);
   }, []);
+
+  // True when the view deviates from defaults — sorting, resizing, hidden
+  // columns, pinning, or active filters. Drives the "Reset view" button.
+  const hasCustomView = useMemo(
+    () =>
+      sorting.length > 0 ||
+      Object.keys(columnSizing).length > 0 ||
+      Object.keys(columnVisibility).length > 0 ||
+      columnPinning.left.length > 0 ||
+      columnPinning.right.length > 0 ||
+      activeFilterCount > 0,
+    [sorting, columnSizing, columnVisibility, columnPinning, activeFilterCount],
+  );
+
+  const resetView = useCallback(() => {
+    setSorting([]);
+    setColumnSizing({});
+    setColumnVisibility({});
+    setColumnPinning({ left: [], right: [] });
+    clearAllFilters();
+    setFiltersVisible(false);
+    clearSelection();
+    clearCellSelection();
+  }, [
+    setColumnVisibility,
+    setColumnPinning,
+    clearAllFilters,
+    clearSelection,
+    clearCellSelection,
+  ]);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, rowIndex: number, columnId: string) => {
@@ -966,6 +996,18 @@ export function DataTable({
               onToggle={() => setFiltersVisible((v) => !v)}
               onClearAll={clearAllFilters}
             />
+          )}
+          {hasCustomView && (
+            <button
+              type="button"
+              className={styles.footerBtn}
+              onClick={resetView}
+              title="Reset sorting, filters, sizing, visibility & pinning"
+              aria-label="Reset view"
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
           )}
           {onRefresh && (
             <button
