@@ -51,6 +51,8 @@ import {
   ColumnVisibilityMenu,
   useColumnVisibility,
   useColumnPinning,
+  useColumnOrder,
+  applyColumnOrder,
 } from "./ColumnVisibility";
 import {
   ExportDialog,
@@ -172,6 +174,7 @@ export function DataTable({
     useColumnVisibility(columnVisibilityKey);
   const [columnPinning, setColumnPinning] =
     useColumnPinning(columnVisibilityKey);
+  const [columnOrder, setColumnOrder] = useColumnOrder(columnVisibilityKey);
   // null when the dialog is closed; "full" for the footer button and
   // "selection" when invoked from the selection sidebar (locks scope and
   // hides the page/filtered/all picker).
@@ -267,8 +270,16 @@ export function DataTable({
       Object.keys(columnVisibility).length > 0 ||
       columnPinning.left.length > 0 ||
       columnPinning.right.length > 0 ||
+      columnOrder.length > 0 ||
       activeFilterCount > 0,
-    [sorting, columnSizing, columnVisibility, columnPinning, activeFilterCount],
+    [
+      sorting,
+      columnSizing,
+      columnVisibility,
+      columnPinning,
+      columnOrder,
+      activeFilterCount,
+    ],
   );
 
   const resetView = useCallback(() => {
@@ -276,6 +287,7 @@ export function DataTable({
     setColumnSizing({});
     setColumnVisibility({});
     setColumnPinning({ left: [], right: [] });
+    setColumnOrder([]);
     clearAllFilters();
     setFiltersVisible(false);
     clearSelection();
@@ -283,6 +295,7 @@ export function DataTable({
   }, [
     setColumnVisibility,
     setColumnPinning,
+    setColumnOrder,
     clearAllFilters,
     clearSelection,
     clearCellSelection,
@@ -361,12 +374,21 @@ export function DataTable({
     [columns],
   );
 
+  // All column ids in the user's chosen order (declaration order when no
+  // custom order). Includes hidden columns — drives the visibility menu list.
+  const orderedColumnIds = useMemo(
+    () => applyColumnOrder(allColumnIds, columnOrder),
+    [allColumnIds, columnOrder],
+  );
+
   // Only visible column ids, in render order: left-pinned, center, then
-  // right-pinned — matching TanStack's getVisibleLeafColumns ordering when
-  // pinning is enabled. Drives layout (CSS widths, sticky offsets, filter
-  // row), keyboard navigation, and copy/clipboard operations.
+  // right-pinned — matching TanStack's getVisibleCells ordering (column order
+  // applied first, then pinning splits the edges). Drives layout (CSS widths,
+  // sticky offsets, filter row), keyboard nav, and copy/clipboard operations.
   const columnIds = useMemo(() => {
-    const visible = allColumnIds.filter((id) => columnVisibility[id] !== false);
+    const visible = orderedColumnIds.filter(
+      (id) => columnVisibility[id] !== false,
+    );
     const leftSet = new Set(columnPinning.left);
     const rightSet = new Set(columnPinning.right);
     const left = columnPinning.left.filter((id) => visible.includes(id));
@@ -375,7 +397,7 @@ export function DataTable({
       (id) => !leftSet.has(id) && !rightSet.has(id),
     );
     return [...left, ...center, ...right];
-  }, [allColumnIds, columnVisibility, columnPinning]);
+  }, [orderedColumnIds, columnVisibility, columnPinning]);
 
   // Live column-resize is handled by us via CSS variables (see resize handler
   // below). TanStack's built-in resize is disabled because it routes every
@@ -388,8 +410,14 @@ export function DataTable({
       columnSizing,
       columnVisibility: columnVisibility as VisibilityState,
       columnPinning: columnPinning as ColumnPinningState,
+      columnOrder,
     },
     onSortingChange: setSorting,
+    onColumnOrderChange: (updater) => {
+      setColumnOrder((prev) =>
+        typeof updater === "function" ? updater(prev) : updater,
+      );
+    },
     onColumnSizingChange: setColumnSizing,
     onColumnVisibilityChange: (updater) => {
       setColumnVisibility((prev) =>
@@ -982,11 +1010,12 @@ export function DataTable({
         <div className={styles.tableFooter}>
           {allColumnIds.length > 0 && (
             <ColumnVisibilityMenu
-              columns={allColumnIds.map((id) => ({ id, label: id }))}
+              columns={orderedColumnIds.map((id) => ({ id, label: id }))}
               visibility={columnVisibility}
               onChange={setColumnVisibility}
               pinning={columnPinning}
               onPinChange={setColumnPinning}
+              onOrderChange={setColumnOrder}
             />
           )}
           {filterActions && (

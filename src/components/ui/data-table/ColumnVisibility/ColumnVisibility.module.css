@@ -51,7 +51,7 @@
 .menu {
   position: fixed;
   z-index: 1000;
-  min-width: 220px;
+  min-width: 280px;
   max-height: 360px;
   background: var(--color-base-100);
   border: 1px solid var(--border-strong);
@@ -144,10 +144,40 @@
   white-space: nowrap;
 }
 
-.pinControls {
+/* Column-group sub-header (labels the Reorder / Pin button groups). */
+.menuColHeaders {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--color-text-tertiary);
+}
+
+.menuColHeadersSpacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.menuColGroupLabel {
+  width: 52px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-left: 1px solid var(--border-subtle);
+}
+
+/* Reorder / Pin button groups; the border-left aligns with the sub-header
+   labels to read as separated columns. */
+.controlGroup {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+  width: 52px;
+  justify-content: center;
+  border-left: 1px solid var(--border-subtle);
 }
 
 .pinBtn {
@@ -168,10 +198,15 @@
     color var(--transition-fast);
 }
 
-.pinBtn:hover {
+.pinBtn:hover:not(:disabled) {
   color: var(--color-text-secondary);
   background: var(--color-base-100);
   border-color: var(--border-subtle);
+}
+
+.pinBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .pinBtnActive,

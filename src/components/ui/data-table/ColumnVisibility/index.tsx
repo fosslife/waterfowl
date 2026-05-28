@@ -8,11 +8,18 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Columns3, ArrowLeftToLine, ArrowRightToLine } from "lucide-react";
+import {
+  Columns3,
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import styles from "./ColumnVisibility.module.css";
 
 const STORAGE_PREFIX = "waterfowl:colvis:";
 const PIN_STORAGE_PREFIX = "waterfowl:colpin:";
+const ORDER_STORAGE_PREFIX = "waterfowl:colorder:";
 
 export type ColumnVisibilityState = Record<string, boolean>;
 
@@ -133,6 +140,70 @@ export function useColumnPinning(storageKey: string | undefined) {
   return [pinning, setPinningPersisted] as const;
 }
 
+/**
+ * Reorder `ids` according to `order`: ids listed in `order` come first (in that
+ * order), followed by any remaining ids in their original order. Mirrors
+ * TanStack's column-order algorithm so our layout stays in sync.
+ */
+export function applyColumnOrder(ids: string[], order: string[]): string[] {
+  if (order.length === 0) return ids;
+  const remaining = [...ids];
+  const ordered: string[] = [];
+  for (const id of order) {
+    const idx = remaining.indexOf(id);
+    if (idx > -1) ordered.push(remaining.splice(idx, 1)[0]);
+  }
+  return [...ordered, ...remaining];
+}
+
+function loadOrder(key: string | undefined): string[] {
+  if (!key || typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(ORDER_STORAGE_PREFIX + key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveOrder(key: string, order: string[]) {
+  try {
+    window.localStorage.setItem(
+      ORDER_STORAGE_PREFIX + key,
+      JSON.stringify(order),
+    );
+  } catch {
+    // Quota or privacy mode — silently ignore
+  }
+}
+
+/**
+ * Column order (explicit id list), optionally persisted to localStorage when
+ * `storageKey` is provided. Empty array means natural declaration order.
+ */
+export function useColumnOrder(storageKey: string | undefined) {
+  const [order, setOrder] = useState<string[]>(() => loadOrder(storageKey));
+
+  useEffect(() => {
+    setOrder(loadOrder(storageKey));
+  }, [storageKey]);
+
+  const setOrderPersisted = useCallback(
+    (updater: string[] | ((prev: string[]) => string[])) => {
+      setOrder((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (storageKey) saveOrder(storageKey, next);
+        return next;
+      });
+    },
+    [storageKey],
+  );
+
+  return [order, setOrderPersisted] as const;
+}
+
 interface ColumnItem {
   id: string;
   label: string;
@@ -146,6 +217,8 @@ interface ColumnVisibilityMenuProps {
   onPinChange: (
     updater: (prev: ColumnPinningState) => ColumnPinningState,
   ) => void;
+  /** Reorder columns. Receives the full new id order (left → right). */
+  onOrderChange: (next: string[]) => void;
 }
 
 export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
@@ -154,6 +227,7 @@ export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
   onChange,
   pinning,
   onPinChange,
+  onOrderChange,
 }: ColumnVisibilityMenuProps) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -169,7 +243,7 @@ export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
     const btn = buttonRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
-    const menuWidth = 240;
+    const menuWidth = 280;
     const menuHeight = 360;
     const left = Math.max(
       8,
@@ -247,6 +321,18 @@ export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
     [onPinChange],
   );
 
+  const moveColumn = useCallback(
+    (id: string, dir: "up" | "down") => {
+      const ids = columns.map((c) => c.id);
+      const i = ids.indexOf(id);
+      const j = dir === "up" ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= ids.length) return;
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      onOrderChange(ids);
+    },
+    [columns, onOrderChange],
+  );
+
   const showAll = useCallback(() => onChange({}), [onChange]);
 
   const hideAllButFirst = useCallback(() => {
@@ -299,8 +385,13 @@ export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
                 </button>
               </div>
             </div>
+            <div className={styles.menuColHeaders}>
+              <span className={styles.menuColHeadersSpacer} />
+              <span className={styles.menuColGroupLabel}>Reorder</span>
+              <span className={styles.menuColGroupLabel}>Pin</span>
+            </div>
             <div className={styles.menuList}>
-              {columns.map((col) => {
+              {columns.map((col, idx) => {
                 const visible = visibility[col.id] !== false;
                 const pinnedLeft = pinning.left.includes(col.id);
                 const pinnedRight = pinning.right.includes(col.id);
@@ -314,7 +405,29 @@ export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
                       />
                       <span>{col.label}</span>
                     </label>
-                    <div className={styles.pinControls}>
+                    <div className={styles.controlGroup}>
+                      <button
+                        type="button"
+                        className={styles.pinBtn}
+                        onClick={() => moveColumn(col.id, "up")}
+                        disabled={idx === 0}
+                        title="Move earlier"
+                        aria-label="Move earlier"
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.pinBtn}
+                        onClick={() => moveColumn(col.id, "down")}
+                        disabled={idx === columns.length - 1}
+                        title="Move later"
+                        aria-label="Move later"
+                      >
+                        <ChevronDown size={12} />
+                      </button>
+                    </div>
+                    <div className={styles.controlGroup}>
                       <button
                         type="button"
                         className={`${styles.pinBtn} ${pinnedLeft ? styles.pinBtnActive : ""}`}
