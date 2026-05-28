@@ -11,10 +11,13 @@ interface TableRowProps {
   isOdd: boolean;
   selectable: boolean;
   pagination?: PaginationState;
-  /** Stable per-column width styles keyed by columnId. The CSS var inside
-   *  is updated by the DataTable wrapper during resize, so the row never
-   *  re-renders on width changes. */
-  colWidthStyles: Record<string, React.CSSProperties>;
+  /** Stable per-column cell styles keyed by columnId (width CSS var plus, for
+   *  pinned columns, a sticky left/right offset var). The vars are updated by
+   *  the DataTable wrapper during resize, so the row never re-renders on width
+   *  changes. */
+  colCellStyles: Record<string, React.CSSProperties>;
+  /** Pin class (left/right) per columnId; empty string for unpinned. */
+  colPinClass: Record<string, string>;
   onToggleSelection: (index: number) => void;
   selectedCellColumnId?: string | null;
   onCellClick?: (rowIndex: number, columnId: string) => void;
@@ -42,7 +45,8 @@ export const TableRow = memo(function TableRow({
   isOdd,
   selectable,
   pagination,
-  colWidthStyles,
+  colCellStyles,
+  colPinClass,
   onToggleSelection,
   selectedCellColumnId,
   onCellClick,
@@ -86,17 +90,18 @@ export const TableRow = memo(function TableRow({
         const columnId = cell.column.id;
         const isCellSelected = selectedCellColumnId === columnId;
         const cellClass = getCellClass(value);
+        const pinClass = colPinClass[columnId] ?? "";
         return (
           <td
             key={cell.id}
-            className={
-              isCellSelected
-                ? cellClass
-                  ? `${cellClass} ${styles.cellSelected}`
-                  : styles.cellSelected
-                : cellClass
-            }
-            style={colWidthStyles[columnId]}
+            className={[
+              cellClass,
+              pinClass,
+              isCellSelected ? styles.cellSelected : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            style={colCellStyles[columnId]}
             data-cell-row={virtualRow.index}
             data-cell-col={columnId}
             onClick={() => onCellClick?.(virtualRow.index, columnId)}

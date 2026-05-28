@@ -24,6 +24,7 @@ import {
   type SortingState,
   type ColumnSizingState,
   type VisibilityState,
+  type ColumnPinningState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import styles from "./DataTable.module.css";
@@ -46,7 +47,11 @@ import {
   type ColumnFilter,
 } from "./ColumnFilter";
 import filterStyles from "./ColumnFilter/ColumnFilter.module.css";
-import { ColumnVisibilityMenu, useColumnVisibility } from "./ColumnVisibility";
+import {
+  ColumnVisibilityMenu,
+  useColumnVisibility,
+  useColumnPinning,
+} from "./ColumnVisibility";
 import {
   ExportDialog,
   type ExportDialogSource,
@@ -165,6 +170,8 @@ export function DataTable({
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility(columnVisibilityKey);
+  const [columnPinning, setColumnPinning] =
+    useColumnPinning(columnVisibilityKey);
   // null when the dialog is closed; "full" for the footer button and
   // "selection" when invoked from the selection sidebar (locks scope and
   // hides the page/filtered/all picker).
@@ -324,13 +331,21 @@ export function DataTable({
     [columns],
   );
 
-  // Only visible column ids. Drives layout (CSS widths, filter row),
-  // keyboard navigation, and copy/clipboard operations so hidden columns
-  // never appear in user output.
-  const columnIds = useMemo(
-    () => allColumnIds.filter((id) => columnVisibility[id] !== false),
-    [allColumnIds, columnVisibility],
-  );
+  // Only visible column ids, in render order: left-pinned, center, then
+  // right-pinned — matching TanStack's getVisibleLeafColumns ordering when
+  // pinning is enabled. Drives layout (CSS widths, sticky offsets, filter
+  // row), keyboard navigation, and copy/clipboard operations.
+  const columnIds = useMemo(() => {
+    const visible = allColumnIds.filter((id) => columnVisibility[id] !== false);
+    const leftSet = new Set(columnPinning.left);
+    const rightSet = new Set(columnPinning.right);
+    const left = columnPinning.left.filter((id) => visible.includes(id));
+    const right = columnPinning.right.filter((id) => visible.includes(id));
+    const center = visible.filter(
+      (id) => !leftSet.has(id) && !rightSet.has(id),
+    );
+    return [...left, ...center, ...right];
+  }, [allColumnIds, columnVisibility, columnPinning]);
 
   // Live column-resize is handled by us via CSS variables (see resize handler
   // below). TanStack's built-in resize is disabled because it routes every
@@ -342,6 +357,7 @@ export function DataTable({
       sorting,
       columnSizing,
       columnVisibility: columnVisibility as VisibilityState,
+      columnPinning: columnPinning as ColumnPinningState,
     },
     onSortingChange: setSorting,
     onColumnSizingChange: setColumnSizing,
@@ -354,6 +370,18 @@ export function DataTable({
           : updater,
       );
     },
+    onColumnPinningChange: (updater) => {
+      setColumnPinning((prev) => {
+        const next =
+          typeof updater === "function"
+            ? (updater as (old: ColumnPinningState) => ColumnPinningState)(
+                prev as ColumnPinningState,
+              )
+            : updater;
+        return { left: next.left ?? [], right: next.right ?? [] };
+      });
+    },
+    enableColumnPinning: true,
     enableColumnResizing: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -368,17 +396,39 @@ export function DataTable({
   const DEFAULT_COL_W = 150;
   const MIN_COL_W = 50;
   const MAX_COL_W = 500;
-  const FIXED_PREFIX_W = (selectable ? 40 : 0) + 50; // checkbox + row-index
+  const CHECKBOX_W = 40;
+  const ROW_INDEX_W = 60; // matches .rowIndex width in CSS
+  const FIXED_PREFIX_W = (selectable ? CHECKBOX_W : 0) + ROW_INDEX_W;
 
-  // Memoized per-column inline style objects keyed by columnId. Stable across
-  // renders so TableRow's memo isn't broken by new prop identities.
-  const colWidthStyles = useMemo(() => {
-    const map: Record<string, React.CSSProperties> = {};
+  // Per-column inline styles keyed by columnId. Width is a CSS var (mutated on
+  // resize without re-render); pinned columns also carry a sticky left/right
+  // offset var and a pin class so the cell sticks to the frozen edge.
+  const { colCellStyles, colPinClass } = useMemo(() => {
+    const styleMap: Record<string, React.CSSProperties> = {};
+    const classMap: Record<string, string> = {};
+    const leftSet = new Set(columnPinning.left);
+    const rightSet = new Set(columnPinning.right);
     for (let i = 0; i < columnIds.length; i++) {
-      map[columnIds[i]] = { width: `var(--dt-w-${i})` };
+      const id = columnIds[i];
+      if (leftSet.has(id)) {
+        styleMap[id] = {
+          width: `var(--dt-w-${i})`,
+          left: `var(--dt-pin-left-${i})`,
+        };
+        classMap[id] = styles.pinnedLeft;
+      } else if (rightSet.has(id)) {
+        styleMap[id] = {
+          width: `var(--dt-w-${i})`,
+          right: `var(--dt-pin-right-${i})`,
+        };
+        classMap[id] = styles.pinnedRight;
+      } else {
+        styleMap[id] = { width: `var(--dt-w-${i})` };
+        classMap[id] = "";
+      }
     }
-    return map;
-  }, [columnIds]);
+    return { colCellStyles: styleMap, colPinClass: classMap };
+  }, [columnIds, columnPinning]);
 
   // Mirror columnSizing in a ref so the resize handler can read current widths
   // without re-binding listeners.
@@ -387,16 +437,40 @@ export function DataTable({
   useLayoutEffect(() => {
     const el = tableContainerRef.current;
     if (!el) return;
+    // Left offset for the sticky row-index cell (sits after the checkbox).
+    el.style.setProperty("--dt-checkbox-w", `${selectable ? CHECKBOX_W : 0}px`);
+
+    const widths: number[] = [];
     let total = FIXED_PREFIX_W;
     for (let i = 0; i < columnIds.length; i++) {
       const id = columnIds[i];
       const w = columnSizing[id] ?? DEFAULT_COL_W;
       sizingRef.current[id] = w;
+      widths[i] = w;
       el.style.setProperty(`--dt-w-${i}`, `${w}px`);
       total += w;
     }
     el.style.setProperty("--dt-table-w", `${total}px`);
-  }, [columnIds, columnSizing, FIXED_PREFIX_W]);
+
+    // Sticky offsets for pinned columns. Left-pinned stack rightward from the
+    // frozen prefix; right-pinned stack leftward from the right edge.
+    const leftSet = new Set(columnPinning.left);
+    const rightSet = new Set(columnPinning.right);
+    let leftAcc = FIXED_PREFIX_W;
+    for (let i = 0; i < columnIds.length; i++) {
+      if (leftSet.has(columnIds[i])) {
+        el.style.setProperty(`--dt-pin-left-${i}`, `${leftAcc}px`);
+        leftAcc += widths[i];
+      }
+    }
+    let rightAcc = 0;
+    for (let i = columnIds.length - 1; i >= 0; i--) {
+      if (rightSet.has(columnIds[i])) {
+        el.style.setProperty(`--dt-pin-right-${i}`, `${rightAcc}px`);
+        rightAcc += widths[i];
+      }
+    }
+  }, [columnIds, columnSizing, FIXED_PREFIX_W, selectable, columnPinning]);
 
   const handleResizeStart = useCallback(
     (colId: string, colIdx: number, e: React.MouseEvent) => {
@@ -748,8 +822,8 @@ export function DataTable({
                         key={header.id}
                         className={`${styles.sortableHeader} ${
                           isNumericType ? styles.headerRight : ""
-                        }`}
-                        style={colWidthStyles[colId]}
+                        } ${colPinClass[colId] ?? ""}`}
+                        style={colCellStyles[colId]}
                       >
                         <div
                           className={styles.headerContent}
@@ -805,8 +879,8 @@ export function DataTable({
                     return (
                       <th
                         key={`filter-${header.id}`}
-                        className={filterStyles.filterCell}
-                        style={colWidthStyles[colId]}
+                        className={`${filterStyles.filterCell} ${colPinClass[colId] ?? ""}`}
+                        style={colCellStyles[colId]}
                       >
                         <FilterCell
                           column={colId}
@@ -857,7 +931,8 @@ export function DataTable({
                       isOdd={virtualRow.index % 2 === 1}
                       selectable={selectable}
                       pagination={pagination}
-                      colWidthStyles={colWidthStyles}
+                      colCellStyles={colCellStyles}
+                      colPinClass={colPinClass}
                       onToggleSelection={toggleRowSelection}
                       selectedCellColumnId={
                         selectedCell?.rowIndex === virtualRow.index
@@ -880,6 +955,8 @@ export function DataTable({
               columns={allColumnIds.map((id) => ({ id, label: id }))}
               visibility={columnVisibility}
               onChange={setColumnVisibility}
+              pinning={columnPinning}
+              onPinChange={setColumnPinning}
             />
           )}
           {filterActions && (

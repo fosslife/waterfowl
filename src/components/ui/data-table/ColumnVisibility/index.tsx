@@ -8,12 +8,19 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { Columns3 } from "lucide-react";
+import { Columns3, ArrowLeftToLine, ArrowRightToLine } from "lucide-react";
 import styles from "./ColumnVisibility.module.css";
 
 const STORAGE_PREFIX = "waterfowl:colvis:";
+const PIN_STORAGE_PREFIX = "waterfowl:colpin:";
 
 export type ColumnVisibilityState = Record<string, boolean>;
+
+/** Pinned column ids per edge, in pin order. Center columns are absent. */
+export interface ColumnPinningState {
+  left: string[];
+  right: string[];
+}
 
 function loadVisibility(key: string | undefined): ColumnVisibilityState {
   if (!key || typeof window === "undefined") return {};
@@ -69,6 +76,63 @@ export function useColumnVisibility(storageKey: string | undefined) {
   return [visibility, setVisibilityPersisted] as const;
 }
 
+function loadPinning(key: string | undefined): ColumnPinningState {
+  if (!key || typeof window === "undefined") return { left: [], right: [] };
+  try {
+    const raw = window.localStorage.getItem(PIN_STORAGE_PREFIX + key);
+    if (!raw) return { left: [], right: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      left: Array.isArray(parsed?.left) ? parsed.left : [],
+      right: Array.isArray(parsed?.right) ? parsed.right : [],
+    };
+  } catch {
+    return { left: [], right: [] };
+  }
+}
+
+function savePinning(key: string, state: ColumnPinningState) {
+  try {
+    window.localStorage.setItem(
+      PIN_STORAGE_PREFIX + key,
+      JSON.stringify(state),
+    );
+  } catch {
+    // Quota or privacy mode — silently ignore
+  }
+}
+
+/**
+ * Column pinning state, optionally persisted to localStorage when `storageKey`
+ * is provided. Mirrors {@link useColumnVisibility}.
+ */
+export function useColumnPinning(storageKey: string | undefined) {
+  const [pinning, setPinning] = useState<ColumnPinningState>(() =>
+    loadPinning(storageKey),
+  );
+
+  useEffect(() => {
+    setPinning(loadPinning(storageKey));
+  }, [storageKey]);
+
+  const setPinningPersisted = useCallback(
+    (
+      updater:
+        | ColumnPinningState
+        | ((prev: ColumnPinningState) => ColumnPinningState),
+    ) => {
+      setPinning((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (storageKey) savePinning(storageKey, next);
+        return next;
+      });
+    },
+    [storageKey],
+  );
+
+  return [pinning, setPinningPersisted] as const;
+}
+
 interface ColumnItem {
   id: string;
   label: string;
@@ -78,12 +142,18 @@ interface ColumnVisibilityMenuProps {
   columns: ColumnItem[];
   visibility: ColumnVisibilityState;
   onChange: (next: ColumnVisibilityState) => void;
+  pinning: ColumnPinningState;
+  onPinChange: (
+    updater: (prev: ColumnPinningState) => ColumnPinningState,
+  ) => void;
 }
 
 export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
   columns,
   visibility,
   onChange,
+  pinning,
+  onPinChange,
 }: ColumnVisibilityMenuProps) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -163,6 +233,20 @@ export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
     [visibility, onChange],
   );
 
+  const togglePin = useCallback(
+    (id: string, side: "left" | "right") => {
+      onPinChange((prev) => {
+        const left = prev.left.filter((c) => c !== id);
+        const right = prev.right.filter((c) => c !== id);
+        if (prev[side].includes(id)) return { left, right };
+        return side === "left"
+          ? { left: [...left, id], right }
+          : { left, right: [...right, id] };
+      });
+    },
+    [onPinChange],
+  );
+
   const showAll = useCallback(() => onChange({}), [onChange]);
 
   const hideAllButFirst = useCallback(() => {
@@ -218,15 +302,39 @@ export const ColumnVisibilityMenu = memo(function ColumnVisibilityMenu({
             <div className={styles.menuList}>
               {columns.map((col) => {
                 const visible = visibility[col.id] !== false;
+                const pinnedLeft = pinning.left.includes(col.id);
+                const pinnedRight = pinning.right.includes(col.id);
                 return (
-                  <label key={col.id} className={styles.menuItem}>
-                    <input
-                      type="checkbox"
-                      checked={visible}
-                      onChange={() => toggle(col.id)}
-                    />
-                    <span>{col.label}</span>
-                  </label>
+                  <div key={col.id} className={styles.menuItem}>
+                    <label className={styles.menuItemLabel}>
+                      <input
+                        type="checkbox"
+                        checked={visible}
+                        onChange={() => toggle(col.id)}
+                      />
+                      <span>{col.label}</span>
+                    </label>
+                    <div className={styles.pinControls}>
+                      <button
+                        type="button"
+                        className={`${styles.pinBtn} ${pinnedLeft ? styles.pinBtnActive : ""}`}
+                        onClick={() => togglePin(col.id, "left")}
+                        title={pinnedLeft ? "Unpin" : "Pin left"}
+                        aria-label={pinnedLeft ? "Unpin" : "Pin left"}
+                      >
+                        <ArrowLeftToLine size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.pinBtn} ${pinnedRight ? styles.pinBtnActive : ""}`}
+                        onClick={() => togglePin(col.id, "right")}
+                        title={pinnedRight ? "Unpin" : "Pin right"}
+                        aria-label={pinnedRight ? "Unpin" : "Pin right"}
+                      >
+                        <ArrowRightToLine size={12} />
+                      </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>

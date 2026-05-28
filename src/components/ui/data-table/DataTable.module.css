@@ -21,6 +21,9 @@
   position: relative;
   height: 0;
   min-height: 0;
+  /* Defines the surface behind transparent (non-zebra) rows so pinned cells,
+     which need an opaque background, match seamlessly. */
+  background: var(--color-base-0);
 }
 
 .wrapper:focus {
@@ -128,6 +131,10 @@
   border-right: 1px solid var(--border-subtle);
   font-size: 0.65rem;
   user-select: none;
+  /* Frozen as the left anchor; pinned data columns stack after it. */
+  position: sticky;
+  left: var(--dt-checkbox-w, 0px);
+  z-index: 6;
 }
 
 /* Thead sticky for virtualization */
@@ -264,8 +271,10 @@
   font-family: var(--font-mono);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color var(--transition-fast),
-    border-color var(--transition-fast), color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .footerBtn:hover {
@@ -451,6 +460,10 @@
   padding: var(--space-2) !important;
   background: var(--color-base-50) !important;
   border-right: 1px solid var(--border-subtle);
+  /* Frozen left anchor (see .rowIndex). */
+  position: sticky;
+  left: 0;
+  z-index: 6;
 }
 
 .checkbox {
@@ -514,6 +527,51 @@
     var(--color-accent-primary) 15%,
     var(--color-base-50)
   ) !important;
+}
+
+/* ── Column pinning ──────────────────────────────────────────────────────
+   Pinned cells stick to a frozen edge. Offsets (--dt-pin-left-N /
+   --dt-pin-right-N) are computed on the wrapper alongside the width vars.
+   z-index 5 keeps them above scrolling cells (the prefix is 6). Body cells
+   need an opaque background for every row state so scrolled content can't
+   show through; the surface base is var(--color-base-0) on .wrapper. */
+.pinnedLeft,
+.pinnedRight {
+  position: sticky;
+  z-index: 5;
+}
+
+.table td.pinnedLeft,
+.table td.pinnedRight {
+  background: var(--color-base-0);
+}
+
+.table tbody tr.zebraRow td.pinnedLeft,
+.table tbody tr.zebraRow td.pinnedRight {
+  background: var(--color-base-50);
+}
+
+.table tbody tr:hover td.pinnedLeft,
+.table tbody tr:hover td.pinnedRight {
+  background: var(--color-base-200);
+}
+
+.table tbody tr[data-selected="true"] td.pinnedLeft,
+.table tbody tr[data-selected="true"] td.pinnedRight {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-primary) 10%,
+    var(--color-base-0)
+  );
+}
+
+.table tbody tr[data-selected="true"]:hover td.pinnedLeft,
+.table tbody tr[data-selected="true"]:hover td.pinnedRight {
+  background: color-mix(
+    in srgb,
+    var(--color-accent-primary) 15%,
+    var(--color-base-0)
+  );
 }
 
 /* Sidebar layout */
