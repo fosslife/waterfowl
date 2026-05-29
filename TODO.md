@@ -12,7 +12,7 @@ Global search — Ctrl+F style find within results
 ~~Export options — CSV~~, JSON, SQL INSERT statements
 Server-side pagination — For queries returning 100k+ rows
 Nice to Have:
-Column pinning — Freeze ID/key columns on the left
+~~Column pinning~~ — Freeze ID/key columns on the left
 Column reordering — Drag columns to rearrange
 Foreign key navigation — Click FK values to jump to related table
 Aggregations in footer — SUM/AVG/COUNT for numeric columns
