@@ -215,7 +215,13 @@ export function TablePanel({ connectionId, tab }: TablePanelProps) {
       pagination.pageSize,
       activeFilters,
     );
-  }, [tab, pagination.page, pagination.pageSize, activeFilters, fetchTableData]);
+  }, [
+    tab,
+    pagination.page,
+    pagination.pageSize,
+    activeFilters,
+    fetchTableData,
+  ]);
 
   const handlePageChange = useCallback(
     (newPage: number) => {

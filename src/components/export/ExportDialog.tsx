@@ -57,7 +57,12 @@ interface ExportDialogProps {
 
 type RunState =
   | { kind: "idle" }
-  | { kind: "running"; exportId: string; rowsWritten: number; total: number | null }
+  | {
+      kind: "running";
+      exportId: string;
+      rowsWritten: number;
+      total: number | null;
+    }
   | {
       kind: "done";
       rowsWritten: number;
@@ -82,14 +87,15 @@ interface ExportSummaryRust {
 }
 
 function generateExportId(): string {
-  return (
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function defaultFileStem(source: ExportDialogSource, scope: ExportScope): string {
+function defaultFileStem(
+  source: ExportDialogSource,
+  scope: ExportScope,
+): string {
   const base = `${source.schema}.${source.name}`;
   switch (scope) {
     case "page":
@@ -175,12 +181,19 @@ export function ExportDialog({
   const runInMemoryExport = useCallback(
     async (rows: Record<string, unknown>[]) => {
       if (!format) return;
-      const blob = format.exportInMemory(rows, columns, getOptionsFor(formatId));
+      const blob = format.exportInMemory(
+        rows,
+        columns,
+        getOptionsFor(formatId),
+      );
       const stem = defaultFileStem(source, scope);
       const path = await save({
         defaultPath: `${stem}${format.extension}`,
         filters: [
-          { name: format.label, extensions: [format.extension.replace(/^\./, "")] },
+          {
+            name: format.label,
+            extensions: [format.extension.replace(/^\./, "")],
+          },
         ],
       });
       if (!path) return; // user cancelled save dialog
@@ -224,7 +237,10 @@ export function ExportDialog({
       const destPath = await save({
         defaultPath: `${stem}${format.extension}`,
         filters: [
-          { name: format.label, extensions: [format.extension.replace(/^\./, "")] },
+          {
+            name: format.label,
+            extensions: [format.extension.replace(/^\./, "")],
+          },
         ],
       });
       if (!destPath) return;
@@ -250,17 +266,20 @@ export function ExportDialog({
           },
         );
 
-        const summary = await invoke<ExportSummaryRust>("export_table_streaming", {
-          exportId,
-          connectionId: source.connectionId,
-          objectType: source.objectType,
-          name: source.name,
-          schema: source.schema,
-          filters: useFilters ? activeFilters : [],
-          formatId,
-          formatOptions: getOptionsFor(formatId),
-          destPath,
-        });
+        const summary = await invoke<ExportSummaryRust>(
+          "export_table_streaming",
+          {
+            exportId,
+            connectionId: source.connectionId,
+            objectType: source.objectType,
+            name: source.name,
+            schema: source.schema,
+            filters: useFilters ? activeFilters : [],
+            formatId,
+            formatOptions: getOptionsFor(formatId),
+            destPath,
+          },
+        );
 
         if (activeExportIdRef.current !== exportId) return;
         setRun({

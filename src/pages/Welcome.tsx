@@ -12,8 +12,6 @@ import {
   Lightbulb,
   ArrowRight,
 } from "lucide-react";
-import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { useConnections, Connection } from "../context/ConnectionsContext";
 import { useNewConnectionModal } from "../context/NewConnectionModalContext";
 import { getRecentConnectionIds } from "../services/connections";
@@ -24,43 +22,6 @@ export function Welcome() {
   const { openNewConnectionModal } = useNewConnectionModal();
   const [recentConnections, setRecentConnections] = useState<Connection[]>([]);
   const hasConnections = connections.length > 0;
-
-  // updater effect
-  useEffect(() => {
-    async function checkForUpdates() {
-      const update = await check();
-      if (update) {
-        console.log(
-          `found update ${update.version} from ${update.date} with notes ${update.body}`,
-        );
-        let downloaded = 0;
-        let contentLength = 0;
-        // alternatively we could also call update.download() and update.install() separately
-        await update.downloadAndInstall((event) => {
-          switch (event.event) {
-            case "Started":
-              contentLength = event.data.contentLength ?? 0;
-              console.log(
-                `started downloading ${event.data.contentLength ?? 0} bytes`,
-              );
-              break;
-            case "Progress":
-              downloaded += event.data.chunkLength ?? 0;
-              console.log(`downloaded ${downloaded} from ${contentLength}`);
-              break;
-            case "Finished":
-              console.log("download finished");
-              break;
-          }
-        });
-
-        console.log("update installed");
-        await relaunch();
-      }
-    }
-
-    checkForUpdates();
-  }, []);
 
   // Load recent connections sorted by last used
   useEffect(() => {

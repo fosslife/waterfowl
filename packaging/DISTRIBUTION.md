@@ -7,40 +7,40 @@
 
 ## ⏭️ Pick up next (start here in a new session)
 
-Work happens on branch **`packaging/distribution`**. Current state is **uncommitted** (user opted not to commit on 2026-05-29).
+Work happens on branch **`packaging/distribution`**. The AUR `waterfowl-bin` files and this tracker are committed (`53cac10 feat: arch packaging`). **All actual _publishing_ to AUR and every other channel is deliberately held open** until packaging is ready across most platforms — so build/prep work continues, no channel goes live yet.
 
-Two independent threads are ready to go, pick either:
+Build/prep threads ready to pick up:
 
-1. **Publish AUR `waterfowl-bin`** — package is built, installed, and launch-tested locally (`makepkg -si` → `waterfowl` ran fine). Only the *publish* steps remain: create AUR account + SSH key, `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push. See §1.
-2. **Wire up the updater guard (Strategy A)** — design is locked (see "Open decisions" §1 below); not yet implemented. ~15 lines of Rust + a guard clause in `Welcome.tsx`. This should land before publishing to *any* channel widely, because the app currently auto-updates silently over managed installs.
+1. **AUR `waterfowl-bin`** — package is built, installed, and launch-tested locally (`makepkg -si` → `waterfowl` ran fine). Publish steps remain but are intentionally deferred (see note above): create AUR account + SSH key, `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push. See §1.
+2. ~~**Updater guard (Strategy A)**~~ — ✅ **IMPLEMENTED 2026-05-31.** `updater_allowed` command (`src-tauri/src/commands/updater.rs`), registered in `lib.rs`, guarded at the top of `checkForUpdates()` in `Welcome.tsx`. Both backend (`cargo check`) and frontend (`tsc`) compile clean.
 
-After that, the next *new* channel to build is **Scoop** (easiest Windows) or **Flathub** (broadest Linux). See status table.
+The next _new_ channel to build is **Scoop** (easiest Windows) or **Flathub** (broadest Linux). See status table.
 
 ---
 
 ## Project facts (verified 2026-05-29)
 
-| Thing | Value |
-| --- | --- |
-| GitHub repo | `github.com/fosslife/waterfowl` |
-| App / binary name | `waterfowl` (lowercase) |
-| Bundle identifier | `com.fosslife.waterfowl` |
-| Current version | `0.2.2` |
-| Release tag format | `Waterfowl-v<version>` (e.g. `Waterfowl-v0.2.2`) |
-| Asset URL base | `https://github.com/fosslife/waterfowl/releases/download/Waterfowl-v<version>/` |
-| Release CI | `.github/workflows/release.yml` (`tauri-action`, on push to `master`) |
+| Thing              | Value                                                                           |
+| ------------------ | ------------------------------------------------------------------------------- |
+| GitHub repo        | `github.com/fosslife/waterfowl`                                                 |
+| App / binary name  | `waterfowl` (lowercase)                                                         |
+| Bundle identifier  | `com.fosslife.waterfowl`                                                        |
+| Current version    | `0.2.2`                                                                         |
+| Release tag format | `Waterfowl-v<version>` (e.g. `Waterfowl-v0.2.2`)                                |
+| Asset URL base     | `https://github.com/fosslife/waterfowl/releases/download/Waterfowl-v<version>/` |
+| Release CI         | `.github/workflows/release.yml` (`tauri-action`, on push to `master`)           |
 
 ### Release asset names (per version `X.Y.Z`)
 
-| Platform | Asset |
-| --- | --- |
-| Linux deb | `waterfowl_X.Y.Z_amd64.deb` |
-| Linux AppImage | `waterfowl_X.Y.Z_amd64.AppImage` |
-| Linux rpm | `waterfowl-X.Y.Z-1.x86_64.rpm` |
-| Windows NSIS | `waterfowl_X.Y.Z_x64-setup.exe` |
-| Windows MSI | `waterfowl_X.Y.Z_x64_en-US.msi` |
-| macOS (Apple Silicon) | `waterfowl_X.Y.Z_aarch64.dmg` |
-| macOS app bundle | `waterfowl_aarch64.app.tar.gz` |
+| Platform              | Asset                            |
+| --------------------- | -------------------------------- |
+| Linux deb             | `waterfowl_X.Y.Z_amd64.deb`      |
+| Linux AppImage        | `waterfowl_X.Y.Z_amd64.AppImage` |
+| Linux rpm             | `waterfowl-X.Y.Z-1.x86_64.rpm`   |
+| Windows NSIS          | `waterfowl_X.Y.Z_x64-setup.exe`  |
+| Windows MSI           | `waterfowl_X.Y.Z_x64_en-US.msi`  |
+| macOS (Apple Silicon) | `waterfowl_X.Y.Z_aarch64.dmg`    |
+| macOS app bundle      | `waterfowl_aarch64.app.tar.gz`   |
 
 > Every asset also has a matching `.sig` (Tauri updater signature, **not** a GPG/code-signing sig).
 
@@ -59,24 +59,24 @@ Everything below targets the "you push" model, plus self-hosted repos as the pra
 
 Legend: ✅ done · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) · ❌ not pursuing (yet)
 
-| # | Channel | Install command | Status | Blocked on |
-| --- | --- | --- | --- | --- |
-| 1 | **AUR (Arch)** `waterfowl-bin` | `yay -S waterfowl-bin` | 🚧 | — |
-| 2 | AUR (Arch) `waterfowl` (from source) | `yay -S waterfowl` | ⏳ | — |
-| 3 | Scoop (Windows) | `scoop install waterfowl` | ⏳ | — |
-| 4 | winget (Windows) | `winget install waterfowl` | ⏳ | code signing (recommended) |
-| 5 | Chocolatey (Windows) | `choco install waterfowl` | ⏳ | code signing (recommended) |
-| 6 | Homebrew Cask (macOS) — own tap | `brew install --cask fosslife/tap/waterfowl` | ⏳ | macOS notarization |
-| 7 | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl` | ⏳ | notarization + popularity |
-| 8 | Flathub (Linux, all distros) | `flatpak install flathub <id>` | ⏳ | — |
-| 9 | Snap Store (Linux) | `snap install waterfowl` | ⏳ | — |
-| 10 | Self-hosted apt repo (Debian/Ubuntu) | `apt install waterfowl` | ⏳ | GPG repo key + hosting |
-| 11 | Ubuntu PPA (Launchpad) | `add-apt-repository ppa:…` | ❌ | (alt to #10) |
-| 12 | Self-hosted dnf repo (Fedora/RHEL) | `dnf install waterfowl` | ⏳ | GPG repo key + hosting |
-| 13 | Fedora COPR | `dnf copr enable …` | ❌ | (alt to #12) |
-| 14 | Official Debian | `apt install waterfowl` | ❌ | sponsor + ITP |
-| 15 | Official Fedora | `dnf install waterfowl` | ❌ | sponsor + review |
-| 16 | Official Arch `[extra]` | `pacman -S waterfowl` | ❌ | Package Maintainer adoption |
+| #   | Channel                                 | Install command                              | Status | Blocked on                  |
+| --- | --------------------------------------- | -------------------------------------------- | ------ | --------------------------- |
+| 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | 🚧     | —                           |
+| 2   | AUR (Arch) `waterfowl` (from source)    | `yay -S waterfowl`                           | ⏳     | —                           |
+| 3   | Scoop (Windows)                         | `scoop install waterfowl`                    | ⏳     | —                           |
+| 4   | winget (Windows)                        | `winget install waterfowl`                   | ⏳     | code signing (recommended)  |
+| 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ⏳     | code signing (recommended)  |
+| 6   | Homebrew Cask (macOS) — own tap         | `brew install --cask fosslife/tap/waterfowl` | ⏳     | macOS notarization          |
+| 7   | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl`              | ⏳     | notarization + popularity   |
+| 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | ⏳     | —                           |
+| 9   | Snap Store (Linux)                      | `snap install waterfowl`                     | ⏳     | —                           |
+| 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | ⏳     | GPG repo key + hosting      |
+| 11  | Ubuntu PPA (Launchpad)                  | `add-apt-repository ppa:…`                   | ❌     | (alt to #10)                |
+| 12  | Self-hosted dnf repo (Fedora/RHEL)      | `dnf install waterfowl`                      | ⏳     | GPG repo key + hosting      |
+| 13  | Fedora COPR                             | `dnf copr enable …`                          | ❌     | (alt to #12)                |
+| 14  | Official Debian                         | `apt install waterfowl`                      | ❌     | sponsor + ITP               |
+| 15  | Official Fedora                         | `dnf install waterfowl`                      | ❌     | sponsor + review            |
+| 16  | Official Arch `[extra]`                 | `pacman -S waterfowl`                        | ❌     | Package Maintainer adoption |
 
 ---
 
@@ -84,15 +84,15 @@ Legend: ✅ done · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) ·
 
 These block multiple channels. Track them here.
 
-| Prereq | Needed for | Status | Notes |
-| --- | --- | --- | --- |
-| GitHub Releases automation | everything | ✅ | `tauri-action` already attaches all bundles |
-| Stable download URLs + checksums | all "you push" channels | ✅ | URL base known; checksums computed per release |
-| Windows code signing (Authenticode OV/EV) | winget, choco (recommended) | ⏳ | unsigned ⇒ SmartScreen warnings |
-| macOS Developer ID + notarization | Homebrew Cask | ⏳ | unsigned ⇒ Gatekeeper blocks |
-| GPG repo signing key | apt/dnf self-hosted repos | ⏳ | — |
-| x86_64 macOS build | Intel mac users | ⏳ | CI currently aarch64 only (commented out in release.yml) |
-| **Updater vs package-manager conflict** | all packaged builds | 🚧 | Design DECIDED (Strategy A, runtime guard), not yet implemented. `Welcome.tsx:29-63` currently silently auto-installs over any install. Full spec in "Open decisions" §1. **Do before publishing widely.** |
+| Prereq                                    | Needed for                  | Status | Notes                                                                                                                                                                                                                                    |
+| ----------------------------------------- | --------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub Releases automation                | everything                  | ✅     | `tauri-action` already attaches all bundles                                                                                                                                                                                              |
+| Stable download URLs + checksums          | all "you push" channels     | ✅     | URL base known; checksums computed per release                                                                                                                                                                                           |
+| Windows code signing (Authenticode OV/EV) | winget, choco (recommended) | ⏳     | unsigned ⇒ SmartScreen warnings                                                                                                                                                                                                          |
+| macOS Developer ID + notarization         | Homebrew Cask               | ⏳     | unsigned ⇒ Gatekeeper blocks                                                                                                                                                                                                             |
+| GPG repo signing key                      | apt/dnf self-hosted repos   | ⏳     | —                                                                                                                                                                                                                                        |
+| x86_64 macOS build                        | Intel mac users             | ⏳     | CI currently aarch64 only (commented out in release.yml)                                                                                                                                                                                 |
+| **Updater vs package-manager conflict**   | all packaged builds         | ✅     | Strategy A (runtime guard) implemented 2026-05-31: `updater_allowed` command gates `checkForUpdates()`. Linux → only AppImage (`$APPIMAGE`) self-updates; `WATERFOWL_PACKAGED` env opt-out for any channel. Spec in "Open decisions" §1. |
 
 ---
 
@@ -103,11 +103,12 @@ These block multiple channels. Track them here.
 **Approach:** repackage the released `.deb` (contains `/usr/bin/waterfowl`, `.desktop`, icons). Standard for Tauri apps on AUR.
 
 Files: `packaging/aur/waterfowl-bin/`
+
 - [x] `PKGBUILD`
 - [x] `.SRCINFO` (generated with `makepkg --printsrcinfo > .SRCINFO`)
 - [x] Local build test: `makepkg -f` succeeds; package ships `/usr/bin/waterfowl`, `.desktop`, 3 icon sizes — verified
 - [x] Install + launch test: `makepkg -si` then `waterfowl` — **launches fine on Arch (verified 2026-05-29)**
-- [ ] Create AUR account + add SSH key (https://aur.archlinux.org)  ← **next for this thread**
+- [ ] Create AUR account + add SSH key (https://aur.archlinux.org) ← **next for this thread**
 - [ ] `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push
 - [ ] Verify `yay -S waterfowl-bin` works on a clean-ish system
 
@@ -116,45 +117,57 @@ Files: `packaging/aur/waterfowl-bin/`
 **Runtime deps (Arch):** `webkit2gtk-4.1`, `gtk3` (pull cairo/glib/etc transitively).
 
 ### 2. AUR — `waterfowl` (build from source) ⏳
+
 Compiles via `cargo`/`pnpm` in `build()`. Heavier; needs `rust`, `pnpm`, `nodejs`, webkit dev headers as `makedepends`. Do after `-bin` is proven.
 
 ### 3. Scoop (Windows) ⏳
+
 Easiest Windows channel. JSON manifest in a bucket (own repo `fosslife/scoop-bucket` or submit to `extras`). Points at the NSIS `.exe` + SHA256. Supports `autoupdate`.
 
 ### 4. winget (Windows) ⏳
+
 YAML manifest PR to `microsoft/winget-pkgs`. Generate/update with `wingetcreate`. Prefers signed installer.
 
 ### 5. Chocolatey (Windows) ⏳
+
 `.nuspec` + install script; moderation queue. Can download installer from release URL.
 
 ### 6/7. Homebrew Cask (macOS) ⏳
+
 Own tap first (`fosslife/homebrew-tap`) — easy, no review. Ruby cask → `.dmg` URL + sha256. Central `homebrew/cask` later (needs notarization + popularity). **Note:** only aarch64 dmg today; need x86_64 or `depends_on arch:` handling.
 
 ### 8. Flathub (Linux) ⏳
+
 Best broad-Linux coverage from one manifest. Submit manifest PR to `flathub/flathub`. Tauri supports flatpak bundling. App id = `com.fosslife.waterfowl`.
 
 ### 9. Snap ⏳
+
 `snapcraft.yaml`, push to Snap Store.
 
 ### 10. Self-hosted apt repo ⏳
+
 Build `.deb` (have it) → GPG-sign → generate `Packages`/`Release` → host (GitHub Pages or server). Users add repo line + key. This is the practical `apt install waterfowl`.
 
 ### 12. Self-hosted dnf repo ⏳
+
 `.rpm` (have it) → GPG-sign → `createrepo_c` → host `.repo` file.
 
 ---
 
 ## Open decisions
 
-### 1. Updater strategy for packaged builds — ✅ DECIDED (Strategy A), ⏳ NOT YET IMPLEMENTED
+### 1. Updater strategy for packaged builds — ✅ DECIDED (Strategy A), ✅ IMPLEMENTED 2026-05-31
+
+> **Implemented:** `src-tauri/src/commands/updater.rs` (`updater_allowed`), registered in `lib.rs` invoke_handler, guarded at the top of `checkForUpdates()` in `Welcome.tsx`. Spec below kept for reference / per-channel responsibilities.
 
 **The problem (verified in code 2026-05-29):**
+
 - `src/pages/Welcome.tsx:29-63` — a `useEffect` runs on mount and **silently auto-installs**: `check()` → `downloadAndInstall()` → `relaunch()`. No user confirmation, no gate.
 - `src-tauri/src/lib.rs:34` — `tauri_plugin_updater::Builder::new().build()` registers the plugin unconditionally.
 - `tauri.conf.json` — `createUpdaterArtifacts: true`; updater endpoint = the GitHub `latest.json`.
 - On a pacman/apt/etc install the binary is at `/usr/bin/waterfowl` (root-owned, package-tracked). Self-update either errors (Linux) or corrupts package-tracked files (Win/macOS). Must be gated.
 
-**Key constraint:** the "am I packaged?" signal must come from the **install environment**, not the binary — because the channels that hurt most reuse the *identical* prebuilt artifact (AUR `-bin` repackages the CI `.deb`; winget/choco run the stock NSIS `.exe`; Homebrew Cask installs the stock `.dmg`). They never recompile, so a compile-time flag can't reach them.
+**Key constraint:** the "am I packaged?" signal must come from the **install environment**, not the binary — because the channels that hurt most reuse the _identical_ prebuilt artifact (AUR `-bin` repackages the CI `.deb`; winget/choco run the stock NSIS `.exe`; Homebrew Cask installs the stock `.dmg`). They never recompile, so a compile-time flag can't reach them.
 
 **Chosen: Strategy A — runtime guard (one build, covers every channel).**
 Optionally layer Strategy B (Cargo feature) later for the from-source channels as defense-in-depth.
@@ -211,6 +224,7 @@ Optionally layer Strategy B (Cargo feature) later for the from-source channels a
 ## How a new release propagates (target end state)
 
 On version bump → CI builds & publishes GitHub Release → automated manifest bumps fan out:
+
 - AUR: bump `pkgver` + checksums, regen `.SRCINFO`, push (scriptable in CI)
 - Scoop: `autoupdate` (automatic)
 - winget: `wingetcreate update` (+ bots)
@@ -224,3 +238,4 @@ On version bump → CI builds & publishes GitHub Release → automated manifest 
 ## Changelog
 
 - **2026-05-29** — Created tracker on branch `packaging/distribution`. Built AUR `waterfowl-bin` (PKGBUILD + .SRCINFO), verified locally via `makepkg -si` + launch — only AUR publish remains. Locked updater strategy (Strategy A, runtime guard) — spec written, not implemented. Work left **uncommitted** at user's request.
+- **2026-05-31** — Earlier work committed as `53cac10 feat: arch packaging`. Implemented updater guard (Strategy A): added `updater_allowed` Tauri command + registered it + guarded `checkForUpdates()` in `Welcome.tsx`; `cargo check` and `tsc` both clean. Publishing to AUR/all channels deliberately held open until packaging is ready across most platforms.

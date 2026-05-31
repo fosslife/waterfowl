@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import clsx from "clsx";
 import { useConnections } from "../context/ConnectionsContext";
 import { useNewConnectionModal } from "../context/NewConnectionModalContext";
+import { UpdateBanner } from "@components/update-banner/UpdateBanner";
 import styles from "./AppLayout.module.css";
 
 export function AppLayout() {
@@ -153,6 +154,8 @@ export function AppLayout() {
       >
         <Outlet />
       </main>
+
+      <UpdateBanner />
     </div>
   );
 }

@@ -6,8 +6,10 @@
 mod connections;
 mod exports;
 mod queries;
+mod updater;
 
 // Re-export all commands for easy registration in lib.rs
 pub use connections::*;
 pub use exports::*;
 pub use queries::*;
+pub use updater::*;

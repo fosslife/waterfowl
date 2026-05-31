@@ -59,6 +59,8 @@ pub fn run() {
             commands::export_table_streaming,
             commands::cancel_export,
             commands::write_text_file,
+            // Updater
+            commands::updater_allowed,
         ])
         .setup(|app| {
             let process_arg: Vec<String> = env::args().collect();
