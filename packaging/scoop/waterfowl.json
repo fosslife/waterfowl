@@ -1,0 +1,28 @@
+{
+  "version": "0.2.2",
+  "description": "Desktop PostgreSQL database manager — browse schemas, edit data, and run SQL.",
+  "homepage": "https://github.com/fosslife/waterfowl",
+  "license": "Unknown",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/fosslife/waterfowl/releases/download/Waterfowl-v0.2.2/waterfowl_0.2.2_x64-setup.exe#/dl.7z",
+      "hash": "2727900900a07b4cb120cdc29d98a823087c3702c0510ef3ba39f7d626169b57"
+    }
+  },
+  "bin": "waterfowl.exe",
+  "shortcuts": [["waterfowl.exe", "Waterfowl"]],
+  "env_set": {
+    "WATERFOWL_PACKAGED": "1"
+  },
+  "checkver": {
+    "github": "https://github.com/fosslife/waterfowl",
+    "regex": "Waterfowl-v([\\d.]+)"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/fosslife/waterfowl/releases/download/Waterfowl-v$version/waterfowl_$version_x64-setup.exe#/dl.7z"
+      }
+    }
+  }
+}

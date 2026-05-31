@@ -14,7 +14,9 @@ Build/prep threads ready to pick up:
 1. **AUR `waterfowl-bin`** — package is built, installed, and launch-tested locally (`makepkg -si` → `waterfowl` ran fine). Publish steps remain but are intentionally deferred (see note above): create AUR account + SSH key, `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push. See §1.
 2. ~~**Updater guard (Strategy A)**~~ — ✅ **IMPLEMENTED 2026-05-31.** `updater_allowed` command (`src-tauri/src/commands/updater.rs`), registered in `lib.rs`, guarded at the top of `checkForUpdates()` in `Welcome.tsx`. Both backend (`cargo check`) and frontend (`tsc`) compile clean.
 
-The next _new_ channel to build is **Scoop** (easiest Windows) or **Flathub** (broadest Linux). See status table.
+Build/prep in flight:
+
+3. **Scoop (Windows)** 🚧 — manifest at `packaging/scoop/waterfowl.json` (2026-05-31), with the real verified SHA256 already filled. One thing remains and it needs an actual Windows box: `scoop install` the manifest, confirm the `bin`/shortcut path (the NSIS extract layout is unverified — may need `extract_dir`), and confirm the updater stays silent. Then publish to a bucket. See §3 for exact commands. After that, the next _new_ channel is **Flathub** (broadest Linux).
 
 ---
 
@@ -59,24 +61,24 @@ Everything below targets the "you push" model, plus self-hosted repos as the pra
 
 Legend: ✅ done · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) · ❌ not pursuing (yet)
 
-| #   | Channel                                 | Install command                              | Status | Blocked on                  |
-| --- | --------------------------------------- | -------------------------------------------- | ------ | --------------------------- |
-| 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | 🚧     | —                           |
-| 2   | AUR (Arch) `waterfowl` (from source)    | `yay -S waterfowl`                           | ⏳     | —                           |
-| 3   | Scoop (Windows)                         | `scoop install waterfowl`                    | ⏳     | —                           |
-| 4   | winget (Windows)                        | `winget install waterfowl`                   | ⏳     | code signing (recommended)  |
-| 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ⏳     | code signing (recommended)  |
-| 6   | Homebrew Cask (macOS) — own tap         | `brew install --cask fosslife/tap/waterfowl` | ⏳     | macOS notarization          |
-| 7   | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl`              | ⏳     | notarization + popularity   |
-| 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | ⏳     | —                           |
-| 9   | Snap Store (Linux)                      | `snap install waterfowl`                     | ⏳     | —                           |
-| 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | ⏳     | GPG repo key + hosting      |
-| 11  | Ubuntu PPA (Launchpad)                  | `add-apt-repository ppa:…`                   | ❌     | (alt to #10)                |
-| 12  | Self-hosted dnf repo (Fedora/RHEL)      | `dnf install waterfowl`                      | ⏳     | GPG repo key + hosting      |
-| 13  | Fedora COPR                             | `dnf copr enable …`                          | ❌     | (alt to #12)                |
-| 14  | Official Debian                         | `apt install waterfowl`                      | ❌     | sponsor + ITP               |
-| 15  | Official Fedora                         | `dnf install waterfowl`                      | ❌     | sponsor + review            |
-| 16  | Official Arch `[extra]`                 | `pacman -S waterfowl`                        | ❌     | Package Maintainer adoption |
+| #   | Channel                                 | Install command                              | Status | Blocked on                    |
+| --- | --------------------------------------- | -------------------------------------------- | ------ | ----------------------------- |
+| 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | 🚧     | —                             |
+| 2   | AUR (Arch) `waterfowl` (from source)    | `yay -S waterfowl`                           | ⏳     | —                             |
+| 3   | Scoop (Windows)                         | `scoop install waterfowl`                    | 🚧     | Windows install test + bucket |
+| 4   | winget (Windows)                        | `winget install waterfowl`                   | ⏳     | code signing (recommended)    |
+| 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ⏳     | code signing (recommended)    |
+| 6   | Homebrew Cask (macOS) — own tap         | `brew install --cask fosslife/tap/waterfowl` | ⏳     | macOS notarization            |
+| 7   | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl`              | ⏳     | notarization + popularity     |
+| 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | ⏳     | —                             |
+| 9   | Snap Store (Linux)                      | `snap install waterfowl`                     | ⏳     | —                             |
+| 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | ⏳     | GPG repo key + hosting        |
+| 11  | Ubuntu PPA (Launchpad)                  | `add-apt-repository ppa:…`                   | ❌     | (alt to #10)                  |
+| 12  | Self-hosted dnf repo (Fedora/RHEL)      | `dnf install waterfowl`                      | ⏳     | GPG repo key + hosting        |
+| 13  | Fedora COPR                             | `dnf copr enable …`                          | ❌     | (alt to #12)                  |
+| 14  | Official Debian                         | `apt install waterfowl`                      | ❌     | sponsor + ITP                 |
+| 15  | Official Fedora                         | `dnf install waterfowl`                      | ❌     | sponsor + review              |
+| 16  | Official Arch `[extra]`                 | `pacman -S waterfowl`                        | ❌     | Package Maintainer adoption   |
 
 ---
 
@@ -120,9 +122,27 @@ Files: `packaging/aur/waterfowl-bin/`
 
 Compiles via `cargo`/`pnpm` in `build()`. Heavier; needs `rust`, `pnpm`, `nodejs`, webkit dev headers as `makedepends`. Do after `-bin` is proven.
 
-### 3. Scoop (Windows) ⏳
+### 3. Scoop (Windows) 🚧 (STARTED 2026-05-31)
 
 Easiest Windows channel. JSON manifest in a bucket (own repo `fosslife/scoop-bucket` or submit to `extras`). Points at the NSIS `.exe` + SHA256. Supports `autoupdate`.
+
+**File:** `packaging/scoop/waterfowl.json` — drafted.
+
+**Design decisions baked into the manifest:**
+
+- **Install method = extract, not run-installer.** The url uses the `…-setup.exe#/dl.7z` trick so Scoop 7-Zip-extracts the Tauri NSIS installer into Scoop's own app dir (`~/scoop/apps/waterfowl/<version>`) instead of running a system installer into Program Files. Keeps it self-contained and uninstall-clean, the Scoop way.
+- **`bin` + `shortcuts` → `waterfowl.exe`.** ⚠️ Assumes the binary sits at the extraction root. **Needs Windows validation** — if the NSIS payload nests under a subfolder, add `"extract_dir"`.
+- **`env_set: { WATERFOWL_PACKAGED: "1" }`.** This is the Scoop side of the updater guard — it makes `updater_allowed` (Rust) return `false`, so the in-app updater stays off and Scoop owns version bumps. Ties directly to "Open decisions" §1.
+- **`checkver` + `autoupdate`** wired to the `Waterfowl-v$version` tag + asset naming, so future releases bump automatically.
+
+**Checklist:**
+
+- [x] Draft manifest (`packaging/scoop/waterfowl.json`)
+- [x] **Real SHA256 filled + verified.** `2727900900a07b4cb120cdc29d98a823087c3702c0510ef3ba39f7d626169b57` for `waterfowl_0.2.2_x64-setup.exe` (3,222,884 bytes, confirmed a valid Nullsoft/NSIS PE32). Computed locally by downloading the official release asset and `sha256sum`-ing it three times (reproducible). Scoop hashes the raw file; the `#/dl.7z` fragment does not change the hash. On future bumps, `.\bin\checkver.ps1 waterfowl -u` in the bucket regenerates it.
+- [ ] Validate on Windows: `scoop install .\waterfowl.json`, launch, confirm `bin`/shortcut path (adjust `extract_dir` if the NSIS payload nests — couldn't inspect here, no 7-Zip locally), confirm `WATERFOWL_PACKAGED` is set and the in-app updater is silent.
+- [ ] Publish: create `fosslife/scoop-bucket`, add the manifest, then `scoop bucket add fosslife https://github.com/fosslife/scoop-bucket && scoop install waterfowl`. (Submitting to `ScoopInstaller/Extras` is the broader-reach alternative; own bucket first.)
+
+> **Aside (not a Scoop blocker):** the repo has **no LICENSE file** and `package.json` has no `license`, so the manifest uses `"license": "Unknown"`. A repo with no license is "all rights reserved" by default — worth adding a real license, which also lets the manifest declare it.
 
 ### 4. winget (Windows) ⏳
 
@@ -206,7 +226,7 @@ Optionally layer Strategy B (Cargo feature) later for the from-source channels a
    - **Homebrew Cask** → both direct + brew land in `/Applications`; add a `postflight` stanza that sets the marker (or, simpler, accept self-update on macOS — no root-owned corruption there).
    - **winget / choco** → same Program Files path as direct download. Either set `WATERFOWL_PACKAGED` in the choco install script (winget can't easily), or accept self-update on Windows (version drift in the PM, but not file corruption).
 
-**Also worth doing (UX, not strictly packaging):** replace the silent auto-install with "notify + user clicks update". Friendlier, and lets packaged builds show "updates are managed by your package manager" instead.
+**Also worth doing (UX, not strictly packaging):** ✅ **DONE 2026-05-31.** Replaced the silent auto-install with notify-then-click: app-wide `<UpdateBanner />` (`src/components/update-banner/`, mounted in `AppLayout`) checks on mount (gated by `updater_allowed`) and shows a dismissible banner with "Update & Restart" + download progress. All updater logic removed from `Welcome.tsx`.
 
 **Strategy B (optional follow-up):** `#[cfg(feature = "self-updater")]` (default on) around the plugin registration in `lib.rs` + expose the flag to the frontend. From-source channels (AUR `waterfowl`, Flatpak, Snap, self-built apt/dnf) build with `--no-default-features` → updater code absent entirely (smaller binary, bulletproof). Insufficient alone — does nothing for repackaging channels — so it complements A, doesn't replace it.
 
@@ -238,4 +258,6 @@ On version bump → CI builds & publishes GitHub Release → automated manifest 
 ## Changelog
 
 - **2026-05-29** — Created tracker on branch `packaging/distribution`. Built AUR `waterfowl-bin` (PKGBUILD + .SRCINFO), verified locally via `makepkg -si` + launch — only AUR publish remains. Locked updater strategy (Strategy A, runtime guard) — spec written, not implemented. Work left **uncommitted** at user's request.
-- **2026-05-31** — Earlier work committed as `53cac10 feat: arch packaging`. Implemented updater guard (Strategy A): added `updater_allowed` Tauri command + registered it + guarded `checkForUpdates()` in `Welcome.tsx`; `cargo check` and `tsc` both clean. Publishing to AUR/all channels deliberately held open until packaging is ready across most platforms.
+- **2026-05-31** — Earlier work committed as `53cac10 feat: arch packaging`. Implemented updater guard (Strategy A): added `updater_allowed` Tauri command + registered it + guarded the updater check; `cargo check` and `tsc` both clean. Publishing to AUR/all channels deliberately held open until packaging is ready across most platforms.
+- **2026-05-31** — Completed the updater UX: replaced the silent auto-install with an app-wide `<UpdateBanner />` (`src/components/update-banner/`, mounted in `AppLayout`) that checks on mount (gated by `updater_allowed`), then notifies → user clicks → downloads with progress → relaunches. All updater logic removed from `Welcome.tsx`. Updater story now complete.
+- **2026-05-31** — Started Scoop (#3): authored `packaging/scoop/waterfowl.json` (NSIS `#/dl.7z` extract pattern, `env_set WATERFOWL_PACKAGED=1` to satisfy the updater guard, `checkver`+`autoupdate`). Filled + verified the real SHA256 (`2727900900…169b57`) by downloading the official `x64-setup.exe` and hashing it (reproducible; confirmed valid NSIS PE32). Remaining: Windows `scoop install` validation (bin/extract_dir) + publish to a bucket. Noted repo has no LICENSE (manifest uses `"license": "Unknown"`).
