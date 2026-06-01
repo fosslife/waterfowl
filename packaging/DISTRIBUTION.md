@@ -27,11 +27,13 @@ Channels already wired up (Phase-1 done — validation/publish deferred to user,
 
 4. **apt/dnf self-hosted repos** (§10/§12) — ✅ Phase-1 done. Multi-app GPG-signed apt+dnf repo kit authored at `packaging/repo/` (scripts + publish workflow + landing + key slot). User has created `fosslife/packages`, generated the signing key, and set the CI secrets. Deploy/validate = Phase 2.
 
+5. **Flathub** (§8) — ✅ Phase-1 done. Kit at `packaging/flatpak/` (manifest + desktop + metainfo, all validated; deb-repackage, runtime `org.gnome.Platform//47`). PR + screenshot = Phase 2.
+
 Next channels to **wire up** (Phase 1):
 
-5. **Flathub** (§8) — broadest Linux reach from one manifest. Authorable now (app id `com.fosslife.waterfowl`). ← **next**
-6. **Homebrew tap** (§6) — `fosslife/homebrew-tap` cask; authorable now (notarization is a Phase-2 concern, not a wiring blocker).
+6. **Homebrew tap** (§6) — `fosslife/homebrew-tap` cask; authorable now (notarization is a Phase-2 concern, not a wiring blocker). ← **next**
 7. **winget / choco** (§4/§5) — per-app manifests authorable now (code-signing affects UX, not wiring).
+8. **Snap** (§9) — `snapcraft.yaml`.
 
 ---
 
@@ -154,7 +156,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) ·
 | 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ⏳     | code signing (recommended)    |
 | 6   | Homebrew Cask (macOS) — own tap         | `brew install --cask fosslife/tap/waterfowl` | ⏳     | macOS notarization            |
 | 7   | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl`              | ⏳     | notarization + popularity     |
-| 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | ⏳     | —                             |
+| 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | ✅     | — (PR + screenshot = Phase 2) |
 | 9   | Snap Store (Linux)                      | `snap install waterfowl`                     | ⏳     | —                             |
 | 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | ✅     | — (publish = Phase 2)         |
 | 11  | Ubuntu PPA (Launchpad)                  | `add-apt-repository ppa:…`                   | ❌     | (alt to #10)                  |
@@ -242,9 +244,14 @@ YAML manifest PR to `microsoft/winget-pkgs`. Generate/update with `wingetcreate`
 
 Own tap first (`fosslife/homebrew-tap`) — easy, no review. Ruby cask → `.dmg` URL + sha256. Central `homebrew/cask` later (needs notarization + popularity). **Note:** only aarch64 dmg today; need x86_64 or `depends_on arch:` handling.
 
-### 8. Flathub (Linux) ⏳
+### 8. Flathub (Linux) ✅ (Phase-1 WIRED 2026-06-01)
 
-Best broad-Linux coverage from one manifest. Submit manifest PR to `flathub/flathub`. Tauri supports flatpak bundling. App id = `com.fosslife.waterfowl`.
+Best broad-Linux coverage from one manifest. Kit at **`packaging/flatpak/`** (app id `com.fosslife.waterfowl`):
+
+- `com.fosslife.waterfowl.yaml` — manifest. Runtime `org.gnome.Platform//47` (ships GTK3 + WebKitGTK-4.1 + libsoup3, exactly the binary's `NEEDED` libs — verified via `objdump`). Builds by **repackaging the released `.deb`** (`ar x` + `tar`), since compiling Tauri in the network-less flatpak sandbox is impractical. Pinned `sha256 d075e7a9…0e8757`.
+- `com.fosslife.waterfowl.desktop` + `.metainfo.xml` — corrected, app-id-named (the deb's baked-in `.desktop` is still the Tauri template default). **Both validated clean** (`desktop-file-validate`, `appstreamcli validate`).
+
+**Phase-2 (user):** `flatpak-builder` build + launch test; add a real screenshot + release date to the metainfo; PR to `flathub/flathub` on a `com.fosslife.waterfowl` branch. Steps in `packaging/flatpak/README.md`. Updater guard: no `$APPIMAGE` in flatpak → self-update already off, zero extra work.
 
 ### 9. Snap ⏳
 
@@ -354,6 +361,7 @@ On version bump → CI builds & publishes GitHub Release → automated manifest 
 - **2026-05-29** — Created tracker on branch `packaging/distribution`. Built AUR `waterfowl-bin` (PKGBUILD + .SRCINFO), verified locally via `makepkg -si` + launch — only AUR publish remains. Locked updater strategy (Strategy A, runtime guard) — spec written, not implemented. Work left **uncommitted** at user's request.
 - **2026-05-31** — Earlier work committed as `53cac10 feat: arch packaging`. Implemented updater guard (Strategy A): added `updater_allowed` Tauri command + registered it + guarded the updater check; `cargo check` and `tsc` both clean. Publishing to AUR/all channels deliberately held open until packaging is ready across most platforms.
 - **2026-05-31** — Completed the updater UX: replaced the silent auto-install with an app-wide `<UpdateBanner />` (`src/components/update-banner/`, mounted in `AppLayout`) that checks on mount (gated by `updater_allowed`), then notifies → user clicks → downloads with progress → relaunches. All updater logic removed from `Welcome.tsx`. Updater story now complete.
+- **2026-06-01** — **Flathub wired up (Phase 1).** Kit at `packaging/flatpak/`: manifest `com.fosslife.waterfowl.yaml` (deb-repackage approach, runtime `org.gnome.Platform//47`, deb `sha256 d075e7a9…0e8757`), plus app-id-named `.desktop` + `.metainfo.xml` (the deb's baked-in desktop is the Tauri template default). Verified locally: `desktop-file-validate` ✓, `appstreamcli validate` ✓, deb-extraction commands run against the real asset ✓, and the binary's `NEEDED` libs (webkit2gtk-4.1/javascriptcoregtk-4.1/libsoup-3.0/gtk-3) all live in the GNOME runtime (objdump-confirmed). Status #8 → ✅. Phase-2: flatpak-builder test + real screenshot + flathub/flathub PR. Next wiring target: Homebrew tap.
 - **2026-06-01** — **apt/dnf wired up (Phase 1).** Authored the multi-app repo kit at `packaging/repo/`: `add-release.sh` (gh-download a release's debs/rpms), `build-repo.sh` (apt flat repo via dpkg-scanpackages+apt-ftparchive → InRelease/Release.gpg; dnf via rpm --addsign + createrepo_c + detached-signed repomd.xml — both bash-syntax-checked & executable), `publish.yml` (dispatch-triggered, imports key from secrets, pushes to gh-pages), `site/index.html` install page, `keys/` public-key slot, README with deploy + Phase-2 checklist. User confirmed `fosslife/packages` created, key generated, CI secrets set. Status #10/#12 → ✅. Next wiring target: Flathub.
 - **2026-06-01** — **MIT license added** (`/LICENSE`, `package.json`, Scoop manifest). **Multi-app strategy decided:** self-hosted/own-namespace channels are shared & app-agnostic across all the user's Tauri apps — one **"Fosslife Packages"** GPG key, one `fosslife/packages` repo (apt+dnf), one `fosslife/scoop-bucket`, one `fosslife/homebrew-tap`; AUR/Flathub/winget/choco stay per-app (same templates). apt/dnf inputs decided: hosting = GitHub Pages `fosslife/packages` → `https://fosslife.github.io/packages/`; signing = one dedicated GPG key, **CI-signed** (`GPG_PRIVATE_KEY`+`GPG_PASSPHRASE`). Added GPG keygen steps to the doc. Outstanding from user: confirm repo + key UID names, run keygen, add the two Actions secrets.
 - **2026-06-01** — Codified the **two-phase strategy** ("Operating principle" section): Phase 1 = wire up every channel (manifests/recipes/scaffolds authored + committed); Phase 2 = user validates + publishes everything on every OS in one pass at the end. Re-statused AUR `-bin` and Scoop as ✅ Phase-1-done (their install-tests/publishes moved to explicit Phase-2 user-owned steps) so "where are we" never reports them as stuck. Added "📥 What we need from the user" section — for the next target (apt/dnf): (A) hosting target [GitHub Pages vs own server], (B) dedicated GPG signing key [identity + where the private key lives], (C) CI-signed vs locally-signed. Plus existing gates: LICENSE, Win code-signing, macOS notarization, x86_64 mac build.
