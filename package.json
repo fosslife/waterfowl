@@ -2,6 +2,7 @@
   "name": "waterfowl",
   "private": true,
   "version": "0.2.2",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.2.2",
   "scripts": {

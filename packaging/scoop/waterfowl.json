@@ -2,7 +2,7 @@
   "version": "0.2.2",
   "description": "Desktop PostgreSQL database manager — browse schemas, edit data, and run SQL.",
   "homepage": "https://github.com/fosslife/waterfowl",
-  "license": "Unknown",
+  "license": "MIT",
   "architecture": {
     "64bit": {
       "url": "https://github.com/fosslife/waterfowl/releases/download/Waterfowl-v0.2.2/waterfowl_0.2.2_x64-setup.exe#/dl.7z",

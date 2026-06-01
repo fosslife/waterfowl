@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fosslife Packages</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font: 16px/1.6 system-ui, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
+      h1 { margin-bottom: 0; }
+      p.lead { color: #888; margin-top: .25rem; }
+      h2 { margin-top: 2.5rem; }
+      pre { background: #1113; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+      code { font-family: ui-monospace, monospace; }
+      footer { margin-top: 3rem; color: #888; font-size: .9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Fosslife Packages</h1>
+    <p class="lead">apt &amp; dnf repository for Fosslife desktop apps (Waterfowl and more).</p>
+
+    <h2>Debian / Ubuntu (apt)</h2>
+    <pre><code># Add the signing key
+curl -fsSL https://fosslife.github.io/packages/fosslife-packages.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/fosslife.gpg
+
+# Add the repository
+echo "deb [signed-by=/usr/share/keyrings/fosslife.gpg] https://fosslife.github.io/packages/deb ./" \
+  | sudo tee /etc/apt/sources.list.d/fosslife.list
+
+sudo apt update
+sudo apt install waterfowl</code></pre>
+
+    <h2>Fedora / RHEL (dnf)</h2>
+    <pre><code>sudo tee /etc/yum.repos.d/fosslife.repo &lt;&lt;'EOF'
+[fosslife]
+name=Fosslife Packages
+baseurl=https://fosslife.github.io/packages/rpm
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://fosslife.github.io/packages/fosslife-packages.asc
+EOF
+
+sudo dnf install waterfowl</code></pre>
+
+    <footer>
+      Source &amp; manifests: <a href="https://github.com/fosslife/packages">github.com/fosslife/packages</a>
+    </footer>
+  </body>
+</html>

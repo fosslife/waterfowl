@@ -21,6 +21,9 @@ NULL vs empty string — Visual distinction (currently both show as empty or NUL
 
 Apply migration through rust
 
+- auto copy selected cell
+-
+
 ---
 
 ### 1. 🚨 Critical Performance Issues

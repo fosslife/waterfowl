@@ -5,18 +5,100 @@
 
 ---
 
+## 🧭 Operating principle (READ FIRST — defines what "done" means here)
+
+**Phase 1 (now): bootstrap & wire up _every_ channel.** Author every manifest/recipe/repo-scaffold and get each one to the point where the only thing left is the user running an install on real hardware. Commit everything.
+
+**Phase 2 (later, all at once): the _user_ validates + publishes** every package on every OS in a single dedicated pass. The user owns all on-device testing and all go-live pushes.
+
+**Therefore — for any agent reading this:** per-channel "install test", "launch test", "Windows validation", "`scoop install`", "`makepkg -si`", AUR/bucket/PR _publishing_, etc. are **NOT blockers and NOT pending work.** They are deliberately deferred to Phase 2 and belong to the user. When asked "where are we", report progress as **how many channels are wired up (Phase 1)**, never as "stuck on testing/validation/publishing channel X." A channel with its manifest authored + committed is **done for Phase 1**, even if never installed anywhere. The only real Phase-1 blockers are missing _inputs_ the user must supply (decisions, accounts, keys, hosting, a LICENSE) — those are tracked in "What we need from the user" below.
+
+---
+
 ## ⏭️ Pick up next (start here in a new session)
 
-Work happens on branch **`packaging/distribution`**. The AUR `waterfowl-bin` files and this tracker are committed (`53cac10 feat: arch packaging`). **All actual _publishing_ to AUR and every other channel is deliberately held open** until packaging is ready across most platforms — so build/prep work continues, no channel goes live yet.
+Work happens on branch **`packaging/distribution`**. The AUR `waterfowl-bin` files and this tracker are committed (`53cac10 feat: arch packaging`). Phase-1 wiring continues; nothing goes live until Phase 2.
 
-Build/prep threads ready to pick up:
+Channels already wired up (Phase-1 done — validation/publish deferred to user, per Operating principle):
 
-1. **AUR `waterfowl-bin`** — package is built, installed, and launch-tested locally (`makepkg -si` → `waterfowl` ran fine). Publish steps remain but are intentionally deferred (see note above): create AUR account + SSH key, `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push. See §1.
+1. **AUR `waterfowl-bin`** — ✅ Phase-1 done. `PKGBUILD` + `.SRCINFO` authored and committed. (Local `makepkg -si` + launch already happened to run, but that was a bonus, not a gate.) Publish = Phase 2, user-owned. See §1.
 2. ~~**Updater guard (Strategy A)**~~ — ✅ **IMPLEMENTED 2026-05-31.** `updater_allowed` command (`src-tauri/src/commands/updater.rs`), registered in `lib.rs`, guarded at the top of `checkForUpdates()` in `Welcome.tsx`. Both backend (`cargo check`) and frontend (`tsc`) compile clean.
+3. **Scoop (Windows)** — ✅ Phase-1 done. Manifest at `packaging/scoop/waterfowl.json` with real verified SHA256, `env_set WATERFOWL_PACKAGED=1`, `checkver`+`autoupdate`. The `extract_dir`/`bin`-path uncertainty is a Phase-2 thing for the user to resolve on Windows — it does not block wiring up other channels. See §3.
 
-Build/prep in flight:
+4. **apt/dnf self-hosted repos** (§10/§12) — ✅ Phase-1 done. Multi-app GPG-signed apt+dnf repo kit authored at `packaging/repo/` (scripts + publish workflow + landing + key slot). User has created `fosslife/packages`, generated the signing key, and set the CI secrets. Deploy/validate = Phase 2.
 
-3. **Scoop (Windows)** 🚧 — manifest at `packaging/scoop/waterfowl.json` (2026-05-31), with the real verified SHA256 already filled. One thing remains and it needs an actual Windows box: `scoop install` the manifest, confirm the `bin`/shortcut path (the NSIS extract layout is unverified — may need `extract_dir`), and confirm the updater stays silent. Then publish to a bucket. See §3 for exact commands. After that, the next _new_ channel is **Flathub** (broadest Linux).
+Next channels to **wire up** (Phase 1):
+
+5. **Flathub** (§8) — broadest Linux reach from one manifest. Authorable now (app id `com.fosslife.waterfowl`). ← **next**
+6. **Homebrew tap** (§6) — `fosslife/homebrew-tap` cask; authorable now (notarization is a Phase-2 concern, not a wiring blocker).
+7. **winget / choco** (§4/§5) — per-app manifests authorable now (code-signing affects UX, not wiring).
+
+---
+
+## 📥 What we need from the user (the only real Phase-1 gates)
+
+These are _inputs_, not work an agent can do alone. Everything else gets wired up regardless.
+
+### Multi-app strategy (DECIDED 2026-06-01) — shared infra across all Fosslife Tauri apps
+
+User has **several other Tauri desktop apps** to publish, near-identical in packaging. Decision: make the **self-hosted / own-namespace channels app-agnostic and shared**, so each new app is just one more manifest/package dropped into existing infra. Templatable because all apps are Tauri.
+
+| Channel | Shareable across apps? | Shared container |
+| ------- | ---------------------- | ---------------- |
+| **apt repo** | ✅ Yes — one repo = a pool of many `.deb`s | `fosslife/packages` → `…/deb/` (waterfowl + others coexist; `apt install <app>`) |
+| **dnf repo** | ✅ Yes — one repo = many `.rpm`s | same repo → `…/rpm/` |
+| **GPG signing key** | ✅ Yes — one key signs all repo metadata | one **"Fosslife Packages"** key, reused for every app |
+| **Scoop bucket** | ✅ Yes — a bucket is a folder of manifests | `fosslife/scoop-bucket` (move `waterfowl.json` here; add others alongside) |
+| **Homebrew tap** | ✅ Yes — a tap holds many casks | `fosslife/homebrew-tap` |
+| AUR | ❌ No — each pkg is its own AUR git repo | `waterfowl-bin`, `<app>-bin`, … (separate, but same PKGBUILD template) |
+| Flathub | ❌ No — per-app repo/PR under flathub org | per app (same manifest template) |
+| winget / choco | ❌ No — central registries, per-app manifests | per app |
+
+> **Net:** one GPG key + one `fosslife/packages` repo (apt **and** dnf) + one Scoop bucket + one Homebrew tap serve **all** your apps. AUR/Flathub/winget/choco are inherently per-app but reuse the same templates.
+
+### For apt/dnf self-hosted repos (next target — §10/§12) — DECIDED 2026-06-01
+
+| # | Input | Decision | Still need from user |
+| - | ----- | -------- | -------------------- |
+| A | **Hosting target** | ✅ **GitHub Pages, shared multi-app repo `fosslife/packages`**, published at `https://fosslife.github.io/packages/` (apt under `…/deb/`, dnf under `…/rpm/`). Sets the `deb [signed-by=…] https://fosslife.github.io/packages/deb …` line and the `.repo` `baseurl`. | Confirm name `fosslife/packages` (or preferred). Custom domain (e.g. `pkgs.fosslife.dev`) optional later. |
+| B | **GPG repo-signing key** | ✅ **One dedicated key, CI-signed, reused for all apps.** Suggested UID: **`Fosslife Packages <zetabytes.pp@gmail.com>`**. Public key committed/published; private key never in the repo. | ① Confirm the UID name (`Fosslife Packages`, or specify). ② Run the keygen steps below and hold the private key. |
+| C | **CI signing secrets** | ✅ **CI-signed** — GitHub Actions signs repo metadata on each release. | After keygen: add **Actions secrets** `GPG_PRIVATE_KEY` (base64 of the exported private key) + `GPG_PASSPHRASE`. I'll wire the workflow to read them. |
+
+> **Ready to wire now (key/secrets as the only blanks):** the `.deb`/`.rpm` ingestion + `gpg` signing scripts, `Packages`/`Release`/`InRelease` (apt) + `createrepo_c` + `repomd.xml.asc` (dnf), the `.list`/`.repo` snippets, the "add our key + repo" install instructions, and a GitHub Actions release workflow that signs + publishes to Pages. **Outstanding user inputs:** UID-name confirm, repo-name confirm, and (post-keygen) the two Actions secrets.
+
+### GPG keygen steps (run these once; output feeds the Actions secrets)
+
+```bash
+# 1. Generate a dedicated 4096-bit repo-signing key (NOT your personal key).
+#    Pick a strong passphrase when prompted — you'll also store it as GPG_PASSPHRASE.
+gpg --full-generate-key
+#    Choose: (1) RSA and RSA · 4096 · 0 = no expiry (or e.g. 5y) ·
+#    Real name: Fosslife Packages · Email: zetabytes.pp@gmail.com
+
+# 2. Find the key id (the long hex after rsa4096/).
+gpg --list-secret-keys --keyid-format=long zetabytes.pp@gmail.com
+
+# 3. Export the PUBLIC key — this gets committed into the repo; users import it to trust the repo.
+gpg --armor --export zetabytes.pp@gmail.com > fosslife-packages.asc
+
+# 4. Export the PRIVATE key and base64 it — paste into the GitHub Actions secret GPG_PRIVATE_KEY.
+gpg --armor --export-secret-keys zetabytes.pp@gmail.com | base64 -w0 > private.b64
+#    Then: GitHub repo → Settings → Secrets and variables → Actions →
+#      GPG_PRIVATE_KEY = contents of private.b64
+#      GPG_PASSPHRASE  = the passphrase from step 1
+
+# 5. Clean up local secret artifacts.
+shred -u private.b64   # (the key stays in your gpg keyring; only the loose export is wiped)
+```
+
+> **Why a key at all:** apt and dnf refuse unsigned repos. apt signs the `Release` file (→ `InRelease`/`Release.gpg`); dnf signs `repomd.xml` (→ `repomd.xml.asc`). Users import the **public** key once, then their package manager cryptographically verifies every download came from you, untampered. The **private** key signs the metadata — it lives only in your keyring + the CI secret, never in the repo. One key covers every app's packages.
+
+### Already-tracked decisions that gate _other_ channels (not apt/dnf)
+
+- **LICENSE file** — ✅ **DONE 2026-06-01: MIT.** Added `/LICENSE` (`Copyright (c) 2026 Sparkenstein` — swap to legal name/"Fosslife" if preferred), set `"license": "MIT"` in `package.json`, updated Scoop manifest `"license": "MIT"`.
+- **Windows code signing cert** (OV/EV Authenticode) → winget/choco UX.
+- **macOS notarization** / Apple Developer Program ($99/yr) → Homebrew Cask.
+- **x86_64 macOS build** — enable the commented-out Intel job in `release.yml`?
 
 ---
 
@@ -61,20 +143,22 @@ Everything below targets the "you push" model, plus self-hosted repos as the pra
 
 Legend: ✅ done · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) · ❌ not pursuing (yet)
 
+> "Status" = **Phase-1 wiring** status (manifest/recipe authored + committed). ✅ here does **not** mean published — all validation + go-live is Phase 2 (user-owned). "Blocked on" lists only real Phase-1 input gaps, never testing/publishing.
+
 | #   | Channel                                 | Install command                              | Status | Blocked on                    |
 | --- | --------------------------------------- | -------------------------------------------- | ------ | ----------------------------- |
-| 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | 🚧     | —                             |
+| 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | ✅     | — (publish = Phase 2)         |
 | 2   | AUR (Arch) `waterfowl` (from source)    | `yay -S waterfowl`                           | ⏳     | —                             |
-| 3   | Scoop (Windows)                         | `scoop install waterfowl`                    | 🚧     | Windows install test + bucket |
+| 3   | Scoop (Windows)                         | `scoop install waterfowl`                    | ✅     | — (publish = Phase 2)         |
 | 4   | winget (Windows)                        | `winget install waterfowl`                   | ⏳     | code signing (recommended)    |
 | 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ⏳     | code signing (recommended)    |
 | 6   | Homebrew Cask (macOS) — own tap         | `brew install --cask fosslife/tap/waterfowl` | ⏳     | macOS notarization            |
 | 7   | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl`              | ⏳     | notarization + popularity     |
 | 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | ⏳     | —                             |
 | 9   | Snap Store (Linux)                      | `snap install waterfowl`                     | ⏳     | —                             |
-| 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | ⏳     | GPG repo key + hosting        |
+| 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | ✅     | — (publish = Phase 2)         |
 | 11  | Ubuntu PPA (Launchpad)                  | `add-apt-repository ppa:…`                   | ❌     | (alt to #10)                  |
-| 12  | Self-hosted dnf repo (Fedora/RHEL)      | `dnf install waterfowl`                      | ⏳     | GPG repo key + hosting        |
+| 12  | Self-hosted dnf repo (Fedora/RHEL)      | `dnf install waterfowl`                      | ✅     | — (publish = Phase 2)         |
 | 13  | Fedora COPR                             | `dnf copr enable …`                          | ❌     | (alt to #12)                  |
 | 14  | Official Debian                         | `apt install waterfowl`                      | ❌     | sponsor + ITP                 |
 | 15  | Official Fedora                         | `dnf install waterfowl`                      | ❌     | sponsor + review              |
@@ -92,7 +176,7 @@ These block multiple channels. Track them here.
 | Stable download URLs + checksums          | all "you push" channels     | ✅     | URL base known; checksums computed per release                                                                                                                                                                                           |
 | Windows code signing (Authenticode OV/EV) | winget, choco (recommended) | ⏳     | unsigned ⇒ SmartScreen warnings                                                                                                                                                                                                          |
 | macOS Developer ID + notarization         | Homebrew Cask               | ⏳     | unsigned ⇒ Gatekeeper blocks                                                                                                                                                                                                             |
-| GPG repo signing key                      | apt/dnf self-hosted repos   | ⏳     | —                                                                                                                                                                                                                                        |
+| GPG repo signing key                      | apt/dnf self-hosted repos   | ✅     | Dedicated "Fosslife Packages" key generated by user 2026-06-01; org Actions secrets `GPG_PRIVATE_KEY`+`GPG_PASSPHRASE` set. Public key → `fosslife/packages` `keys/`.                                                                     |
 | x86_64 macOS build                        | Intel mac users             | ⏳     | CI currently aarch64 only (commented out in release.yml)                                                                                                                                                                                 |
 | **Updater vs package-manager conflict**   | all packaged builds         | ✅     | Strategy A (runtime guard) implemented 2026-05-31: `updater_allowed` command gates `checkForUpdates()`. Linux → only AppImage (`$APPIMAGE`) self-updates; `WATERFOWL_PACKAGED` env opt-out for any channel. Spec in "Open decisions" §1. |
 
@@ -110,9 +194,10 @@ Files: `packaging/aur/waterfowl-bin/`
 - [x] `.SRCINFO` (generated with `makepkg --printsrcinfo > .SRCINFO`)
 - [x] Local build test: `makepkg -f` succeeds; package ships `/usr/bin/waterfowl`, `.desktop`, 3 icon sizes — verified
 - [x] Install + launch test: `makepkg -si` then `waterfowl` — **launches fine on Arch (verified 2026-05-29)**
-- [ ] Create AUR account + add SSH key (https://aur.archlinux.org) ← **next for this thread**
-- [ ] `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push
-- [ ] Verify `yay -S waterfowl-bin` works on a clean-ish system
+- **Phase-1 complete.** The steps below are **Phase 2 (user-owned)**, not pending agent work:
+  - [ ] _(Phase 2)_ Create AUR account + add SSH key (https://aur.archlinux.org)
+  - [ ] _(Phase 2)_ `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push
+  - [ ] _(Phase 2)_ Verify `yay -S waterfowl-bin` works on a clean-ish system
 
 > **Note:** upstream `.desktop` is still the Tauri template default (`Comment=A Tauri App`, empty `Categories`). Cosmetic, baked into the bundle — fix in `tauri.conf.json` bundle config, not here.
 
@@ -139,8 +224,9 @@ Easiest Windows channel. JSON manifest in a bucket (own repo `fosslife/scoop-buc
 
 - [x] Draft manifest (`packaging/scoop/waterfowl.json`)
 - [x] **Real SHA256 filled + verified.** `2727900900a07b4cb120cdc29d98a823087c3702c0510ef3ba39f7d626169b57` for `waterfowl_0.2.2_x64-setup.exe` (3,222,884 bytes, confirmed a valid Nullsoft/NSIS PE32). Computed locally by downloading the official release asset and `sha256sum`-ing it three times (reproducible). Scoop hashes the raw file; the `#/dl.7z` fragment does not change the hash. On future bumps, `.\bin\checkver.ps1 waterfowl -u` in the bucket regenerates it.
-- [ ] Validate on Windows: `scoop install .\waterfowl.json`, launch, confirm `bin`/shortcut path (adjust `extract_dir` if the NSIS payload nests — couldn't inspect here, no 7-Zip locally), confirm `WATERFOWL_PACKAGED` is set and the in-app updater is silent.
-- [ ] Publish: create `fosslife/scoop-bucket`, add the manifest, then `scoop bucket add fosslife https://github.com/fosslife/scoop-bucket && scoop install waterfowl`. (Submitting to `ScoopInstaller/Extras` is the broader-reach alternative; own bucket first.)
+- **Phase-1 complete.** The steps below are **Phase 2 (user-owned)**, not pending agent work:
+  - [ ] _(Phase 2)_ Validate on Windows: `scoop install .\waterfowl.json`, launch, confirm `bin`/shortcut path (adjust `extract_dir` if the NSIS payload nests), confirm `WATERFOWL_PACKAGED` is set and the in-app updater is silent.
+  - [ ] _(Phase 2)_ Publish: create `fosslife/scoop-bucket`, add the manifest, then `scoop bucket add fosslife https://github.com/fosslife/scoop-bucket && scoop install waterfowl`. (Submitting to `ScoopInstaller/Extras` is the broader-reach alternative; own bucket first.)
 
 > **Aside (not a Scoop blocker):** the repo has **no LICENSE file** and `package.json` has no `license`, so the manifest uses `"license": "Unknown"`. A repo with no license is "all rights reserved" by default — worth adding a real license, which also lets the manifest declare it.
 
@@ -164,13 +250,21 @@ Best broad-Linux coverage from one manifest. Submit manifest PR to `flathub/flat
 
 `snapcraft.yaml`, push to Snap Store.
 
-### 10. Self-hosted apt repo ⏳
+### 10 & 12. Self-hosted apt + dnf repos ✅ (Phase-1 WIRED 2026-06-01)
 
-Build `.deb` (have it) → GPG-sign → generate `Packages`/`Release` → host (GitHub Pages or server). Users add repo line + key. This is the practical `apt install waterfowl`.
+**Unified, multi-app, GPG-signed apt+dnf repo served from GitHub Pages** (`fosslife/packages`). Kit authored at **`packaging/repo/`** (staged in this repo; deploy = copy into the `fosslife/packages` `main` branch):
 
-### 12. Self-hosted dnf repo ⏳
+- `scripts/add-release.sh` — `gh release download` an app's `*.deb`/`*.rpm` into the shared tree (app-agnostic).
+- `scripts/build-repo.sh` — apt flat repo (`dpkg-scanpackages` + `apt-ftparchive release` → `InRelease`/`Release.gpg`) **and** dnf (`rpm --addsign` each rpm + `createrepo_c` + detached-sign `repomd.xml`). Both syntax-checked.
+- `.github/workflows/publish.yml` — `workflow_dispatch`(app_repo, tag) + `repository_dispatch`; imports the key from `GPG_PRIVATE_KEY`/`GPG_PASSPHRASE` secrets, ingests, signs, force-pushes the whole tree to `gh-pages`.
+- `site/index.html` — install-instructions landing (apt `.list` + dnf `.repo` snippets, key URL).
+- `keys/` — drop the **public** key as `fosslife-packages.asc`.
 
-`.rpm` (have it) → GPG-sign → `createrepo_c` → host `.repo` file.
+**Deployed copy:** user mirrored the kit to `fosslife/packages` (local: `/home/spark/projects/packages`, pushed) + added the real public key (`keys/fosslife-packages.asc`, UID `Fosslife Packages <zetabytes.pp@gmail.com>`, fpr `A336A8D1D686BFCF46FFFF7B30EF7740D6BC79A7`) + LICENSE. `GPG_KEY_ID` is now pinned to that fingerprint in both `build-repo.sh` + `publish.yml` (both locations) — re-push `packages` after this edit.
+
+**Remaining (recorded in `packaging/repo/README.md`):** create the empty `gh-pages` branch + point Pages at it (Settings → Pages → Source = `gh-pages`/root). All install-testing on real Debian/Fedora boxes = Phase 2.
+
+> **rpm-signing caveat (Phase-2 watch item):** the `%__gpg_sign_cmd` macro in `build-repo.sh` is the one piece most sensitive to the runner's `rpm` version — verify it signs cleanly during Phase-2 validation.
 
 ---
 
@@ -260,4 +354,7 @@ On version bump → CI builds & publishes GitHub Release → automated manifest 
 - **2026-05-29** — Created tracker on branch `packaging/distribution`. Built AUR `waterfowl-bin` (PKGBUILD + .SRCINFO), verified locally via `makepkg -si` + launch — only AUR publish remains. Locked updater strategy (Strategy A, runtime guard) — spec written, not implemented. Work left **uncommitted** at user's request.
 - **2026-05-31** — Earlier work committed as `53cac10 feat: arch packaging`. Implemented updater guard (Strategy A): added `updater_allowed` Tauri command + registered it + guarded the updater check; `cargo check` and `tsc` both clean. Publishing to AUR/all channels deliberately held open until packaging is ready across most platforms.
 - **2026-05-31** — Completed the updater UX: replaced the silent auto-install with an app-wide `<UpdateBanner />` (`src/components/update-banner/`, mounted in `AppLayout`) that checks on mount (gated by `updater_allowed`), then notifies → user clicks → downloads with progress → relaunches. All updater logic removed from `Welcome.tsx`. Updater story now complete.
+- **2026-06-01** — **apt/dnf wired up (Phase 1).** Authored the multi-app repo kit at `packaging/repo/`: `add-release.sh` (gh-download a release's debs/rpms), `build-repo.sh` (apt flat repo via dpkg-scanpackages+apt-ftparchive → InRelease/Release.gpg; dnf via rpm --addsign + createrepo_c + detached-signed repomd.xml — both bash-syntax-checked & executable), `publish.yml` (dispatch-triggered, imports key from secrets, pushes to gh-pages), `site/index.html` install page, `keys/` public-key slot, README with deploy + Phase-2 checklist. User confirmed `fosslife/packages` created, key generated, CI secrets set. Status #10/#12 → ✅. Next wiring target: Flathub.
+- **2026-06-01** — **MIT license added** (`/LICENSE`, `package.json`, Scoop manifest). **Multi-app strategy decided:** self-hosted/own-namespace channels are shared & app-agnostic across all the user's Tauri apps — one **"Fosslife Packages"** GPG key, one `fosslife/packages` repo (apt+dnf), one `fosslife/scoop-bucket`, one `fosslife/homebrew-tap`; AUR/Flathub/winget/choco stay per-app (same templates). apt/dnf inputs decided: hosting = GitHub Pages `fosslife/packages` → `https://fosslife.github.io/packages/`; signing = one dedicated GPG key, **CI-signed** (`GPG_PRIVATE_KEY`+`GPG_PASSPHRASE`). Added GPG keygen steps to the doc. Outstanding from user: confirm repo + key UID names, run keygen, add the two Actions secrets.
+- **2026-06-01** — Codified the **two-phase strategy** ("Operating principle" section): Phase 1 = wire up every channel (manifests/recipes/scaffolds authored + committed); Phase 2 = user validates + publishes everything on every OS in one pass at the end. Re-statused AUR `-bin` and Scoop as ✅ Phase-1-done (their install-tests/publishes moved to explicit Phase-2 user-owned steps) so "where are we" never reports them as stuck. Added "📥 What we need from the user" section — for the next target (apt/dnf): (A) hosting target [GitHub Pages vs own server], (B) dedicated GPG signing key [identity + where the private key lives], (C) CI-signed vs locally-signed. Plus existing gates: LICENSE, Win code-signing, macOS notarization, x86_64 mac build.
 - **2026-05-31** — Started Scoop (#3): authored `packaging/scoop/waterfowl.json` (NSIS `#/dl.7z` extract pattern, `env_set WATERFOWL_PACKAGED=1` to satisfy the updater guard, `checkver`+`autoupdate`). Filled + verified the real SHA256 (`2727900900…169b57`) by downloading the official `x64-setup.exe` and hashing it (reproducible; confirmed valid NSIS PE32). Remaining: Windows `scoop install` validation (bin/extract_dir) + publish to a bucket. Noted repo has no LICENSE (manifest uses `"license": "Unknown"`).

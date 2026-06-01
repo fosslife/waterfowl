@@ -1,0 +1,87 @@
+name: Publish packages repo
+
+# Ingest a released app's .deb/.rpm, regenerate + GPG-sign the apt/dnf metadata,
+# and publish the whole tree to the gh-pages branch (served by GitHub Pages).
+#
+# Trigger it two ways:
+#   • Manually:  Actions → "Publish packages repo" → Run workflow (app_repo + tag)
+#   • Automatically: another repo sends a repository_dispatch {type: new-release,
+#     client_payload: {app_repo, tag}} — see README "Auto-trigger from an app repo".
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_repo:
+        description: "owner/repo of the app to ingest"
+        required: true
+        default: "fosslife/waterfowl"
+      tag:
+        description: "release tag (e.g. Waterfowl-v0.2.2)"
+        required: true
+  repository_dispatch:
+    types: [new-release]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-packages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      APP_REPO: ${{ github.event.inputs.app_repo || github.event.client_payload.app_repo }}
+      TAG: ${{ github.event.inputs.tag || github.event.client_payload.tag }}
+      REPO_DIR: public
+      GPG_KEY_ID: "A336A8D1D686BFCF46FFFF7B30EF7740D6BC79A7"  # Fosslife Packages key fingerprint
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout tooling (main)
+        uses: actions/checkout@v4
+
+      - name: Install repo tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils createrepo-c rpm gnupg
+
+      - name: Import signing key
+        run: echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 -d | gpg --batch --import
+
+      - name: Fetch current published tree (gh-pages)
+        run: |
+          git clone --branch gh-pages --depth 1 \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$REPO_DIR" \
+            || { echo "gh-pages not found — bootstrapping fresh tree"; mkdir -p "$REPO_DIR"; }
+
+      - name: Ingest release assets
+        run: ./scripts/add-release.sh "$APP_REPO" "$TAG"
+
+      - name: Build + sign apt/dnf metadata
+        run: ./scripts/build-repo.sh
+
+      - name: Stage landing page + public key
+        run: |
+          cp -f site/index.html "$REPO_DIR/index.html"
+          # The real public key lives at keys/fosslife-packages.asc on this (main) branch.
+          # It is served at the Pages root so the .repo gpgkey= URL resolves.
+          if [ -f keys/fosslife-packages.asc ]; then
+            cp -f keys/fosslife-packages.asc "$REPO_DIR/fosslife-packages.asc"
+          else
+            echo "::warning::keys/fosslife-packages.asc missing — commit the real public key (see keys/README.md)"
+          fi
+          touch "$REPO_DIR/.nojekyll"   # serve dot/underscore paths verbatim
+
+      - name: Publish to gh-pages
+        run: |
+          cd "$REPO_DIR"
+          if [ ! -d .git ]; then git init -q && git checkout -q -b gh-pages; fi
+          git config user.name  "fosslife-bot"
+          git config user.email "zetabytes.pp@gmail.com"
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add -A
+          git commit -qm "publish: ${APP_REPO}@${TAG}" || { echo "nothing changed"; exit 0; }
+          git push -f origin gh-pages
