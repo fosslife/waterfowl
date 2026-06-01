@@ -31,10 +31,11 @@ Channels already wired up (Phase-1 done — validation/publish deferred to user,
 
 6. **Homebrew tap** (§6) — ✅ Phase-1 done. `packaging/homebrew/Casks/waterfowl.rb` (dmg sha256 + `waterfowl.app` verified, `auto_updates true`, arm64). Publish + notarize = Phase 2.
 
+7. **winget** (§4) — ✅ Phase-1 done. `packaging/winget/` three-file manifest (`Fosslife.Waterfowl`, NSIS x64, sha256 verified). PR + signing = Phase 2.
+
 Next channels to **wire up** (Phase 1):
 
-7. **winget** (§4) — `wingetcreate`/YAML manifest; authorable now (code-signing affects UX, not wiring). ← **next**
-8. **Chocolatey** (§5) — `.nuspec` + install script.
+8. **Chocolatey** (§5) — `.nuspec` + install script. ← **next**
 9. **Snap** (§9) — `snapcraft.yaml`.
 10. **AUR `waterfowl` from-source** (§2).
 
@@ -155,7 +156,7 @@ Legend: ✅ done · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) ·
 | 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | ✅     | — (publish = Phase 2)         |
 | 2   | AUR (Arch) `waterfowl` (from source)    | `yay -S waterfowl`                           | ⏳     | —                             |
 | 3   | Scoop (Windows)                         | `scoop install waterfowl`                    | ✅     | — (publish = Phase 2)         |
-| 4   | winget (Windows)                        | `winget install waterfowl`                   | ⏳     | code signing (recommended)    |
+| 4   | winget (Windows)                        | `winget install Fosslife.Waterfowl`          | ✅     | — (PR + signing = Phase 2)    |
 | 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ⏳     | code signing (recommended)    |
 | 6   | Homebrew Cask (macOS) — own tap         | `brew install --cask fosslife/tap/waterfowl` | ✅     | — (publish + notarize = Ph 2) |
 | 7   | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl`              | ⏳     | notarization + popularity     |
@@ -235,9 +236,14 @@ Easiest Windows channel. JSON manifest in a bucket (own repo `fosslife/scoop-buc
 
 > **Aside (not a Scoop blocker):** the repo has **no LICENSE file** and `package.json` has no `license`, so the manifest uses `"license": "Unknown"`. A repo with no license is "all rights reserved" by default — worth adding a real license, which also lets the manifest declare it.
 
-### 4. winget (Windows) ⏳
+### 4. winget (Windows) ✅ (Phase-1 WIRED 2026-06-01)
 
-YAML manifest PR to `microsoft/winget-pkgs`. Generate/update with `wingetcreate`. Prefers signed installer.
+Kit at **`packaging/winget/`** — three manifests (schema 1.6.0) in the exact `microsoft/winget-pkgs` tree `manifests/f/Fosslife/Waterfowl/0.2.2/`:
+
+- `…installer.yaml` — `InstallerType: nullsoft`, x64 NSIS exe, `Scope: user` (Tauri NSIS installs per-user), sha256 `2727…169B57` (uppercase, re-verified against the live asset).
+- `…locale.en-US.yaml` — publisher/desc/`License: MIT`/tags. `…yaml` — version manifest.
+
+`PackageIdentifier: Fosslife.Waterfowl`. **Phase-2 (user, Windows):** `winget validate` + local `--manifest` install, then `wingetcreate … --submit` or PR to winget-pkgs. **Before submit:** LICENSE must be live on `master` (LicenseUrl points there); set real ReleaseDate. Code signing optional (removes SmartScreen, doesn't block winget). Updater: can't set `WATERFOWL_PACKAGED` → self-update stays on (version-drift only, no corruption). Details in `packaging/winget/README.md`.
 
 ### 5. Chocolatey (Windows) ⏳
 
@@ -372,6 +378,7 @@ On version bump → CI builds & publishes GitHub Release → automated manifest 
 - **2026-05-29** — Created tracker on branch `packaging/distribution`. Built AUR `waterfowl-bin` (PKGBUILD + .SRCINFO), verified locally via `makepkg -si` + launch — only AUR publish remains. Locked updater strategy (Strategy A, runtime guard) — spec written, not implemented. Work left **uncommitted** at user's request.
 - **2026-05-31** — Earlier work committed as `53cac10 feat: arch packaging`. Implemented updater guard (Strategy A): added `updater_allowed` Tauri command + registered it + guarded the updater check; `cargo check` and `tsc` both clean. Publishing to AUR/all channels deliberately held open until packaging is ready across most platforms.
 - **2026-05-31** — Completed the updater UX: replaced the silent auto-install with an app-wide `<UpdateBanner />` (`src/components/update-banner/`, mounted in `AppLayout`) that checks on mount (gated by `updater_allowed`), then notifies → user clicks → downloads with progress → relaunches. All updater logic removed from `Welcome.tsx`. Updater story now complete.
+- **2026-06-01** — **winget wired up (Phase 1).** Kit at `packaging/winget/manifests/f/Fosslife/Waterfowl/0.2.2/`: three manifests (installer/defaultLocale/version, schema 1.6.0), `PackageIdentifier Fosslife.Waterfowl`, NSIS x64 `nullsoft` installer, `Scope: user`, sha256 `2727…169B57` re-verified against the live `x64-setup.exe`. No YAML/winget tooling on this box → `winget validate` deferred to Phase-2 Windows. Pre-submit reminders: LICENSE on `master` (LicenseUrl target) + real ReleaseDate. Status #4 → ✅. Next wiring target: Chocolatey.
 - **2026-06-01** — **Homebrew Cask wired up (Phase 1).** Kit at `packaging/homebrew/` for the shared tap `fosslife/homebrew-tap`: `Casks/waterfowl.rb` with real dmg `sha256 aa502740…54c71` (computed from `waterfowl_0.2.2_aarch64.dmg`), `app "waterfowl.app"` (confirmed from the app.tar.gz), `auto_updates true`, `depends_on arch: :arm64` + `macos: ">= :big_sur"`, `livecheck` on the release tag. ruby/brew not on this box → DSL lint deferred to Phase-2 Mac. Real Phase-2 gate = notarization (unsigned dmg → Gatekeeper block). Status #6 → ✅. Next wiring target: winget.
 - **2026-06-01** — **Flathub wired up (Phase 1).** Kit at `packaging/flatpak/`: manifest `com.fosslife.waterfowl.yaml` (deb-repackage approach, runtime `org.gnome.Platform//47`, deb `sha256 d075e7a9…0e8757`), plus app-id-named `.desktop` + `.metainfo.xml` (the deb's baked-in desktop is the Tauri template default). Verified locally: `desktop-file-validate` ✓, `appstreamcli validate` ✓, deb-extraction commands run against the real asset ✓, and the binary's `NEEDED` libs (webkit2gtk-4.1/javascriptcoregtk-4.1/libsoup-3.0/gtk-3) all live in the GNOME runtime (objdump-confirmed). Status #8 → ✅. Phase-2: flatpak-builder test + real screenshot + flathub/flathub PR. Next wiring target: Homebrew tap.
 - **2026-06-01** — **apt/dnf wired up (Phase 1).** Authored the multi-app repo kit at `packaging/repo/`: `add-release.sh` (gh-download a release's debs/rpms), `build-repo.sh` (apt flat repo via dpkg-scanpackages+apt-ftparchive → InRelease/Release.gpg; dnf via rpm --addsign + createrepo_c + detached-signed repomd.xml — both bash-syntax-checked & executable), `publish.yml` (dispatch-triggered, imports key from secrets, pushes to gh-pages), `site/index.html` install page, `keys/` public-key slot, README with deploy + Phase-2 checklist. User confirmed `fosslife/packages` created, key generated, CI secrets set. Status #10/#12 → ✅. Next wiring target: Flathub.

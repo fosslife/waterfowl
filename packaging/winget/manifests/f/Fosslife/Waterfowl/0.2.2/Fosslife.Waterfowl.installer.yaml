@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: Fosslife.Waterfowl
+PackageVersion: 0.2.2
+InstallerLocale: en-US
+Platform:
+  - Windows.Desktop
+MinimumOSVersion: 10.0.0.0
+InstallerType: nullsoft
+Scope: user # Tauri NSIS defaults to a per-user install (%LOCALAPPDATA%)
+InstallModes:
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+ReleaseDate: 2026-06-01 # TODO(Phase 2): set the real 0.2.2 release date
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/fosslife/waterfowl/releases/download/Waterfowl-v0.2.2/waterfowl_0.2.2_x64-setup.exe
+    InstallerSha256: 2727900900A07B4CB120CDC29D98A823087C3702C0510EF3BA39F7D626169B57
+ManifestType: installer
+ManifestVersion: 1.6.0

@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: Fosslife.Waterfowl
+PackageVersion: 0.2.2
+PackageLocale: en-US
+Publisher: Fosslife
+PublisherUrl: https://github.com/fosslife
+PublisherSupportUrl: https://github.com/fosslife/waterfowl/issues
+Author: Fosslife
+PackageName: Waterfowl
+PackageUrl: https://github.com/fosslife/waterfowl
+License: MIT
+LicenseUrl: https://github.com/fosslife/waterfowl/blob/master/LICENSE
+Copyright: Copyright (c) 2026 Sparkenstein
+ShortDescription: Desktop PostgreSQL database manager.
+Description: |-
+  Waterfowl is a desktop manager for PostgreSQL databases — save connections,
+  browse schemas, tables, views, functions and sequences, edit data inline, and
+  run ad-hoc SQL queries from a CodeMirror-powered editor.
+Moniker: waterfowl
+Tags:
+  - postgresql
+  - postgres
+  - database
+  - sql
+  - database-manager
+  - gui
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
