@@ -403,17 +403,22 @@ Optionally layer Strategy B (Cargo feature) later for the from-source channels a
 
 ---
 
-## How a new release propagates (target end state)
+## How a new release propagates (update flow)
 
-On version bump → CI builds & publishes GitHub Release → automated manifest bumps fan out:
+> **Full per-channel detail: [`packaging/UPDATES.md`](./UPDATES.md).**
 
-- AUR: bump `pkgver` + checksums, regen `.SRCINFO`, push (scriptable in CI)
-- Scoop: `autoupdate` (automatic)
-- winget: `wingetcreate update` (+ bots)
-- Homebrew: `brew bump-cask-pr`
-- Flathub: update bot PRs
+Short version: **nothing auto-updates by default.** A new release only rebuilds the GitHub
+Release; every package channel must have its pointer bumped before users see it. Packaged
+Linux installs (apt/dnf/AUR/Flatpak) deliberately *can't* self-update (updater guard), so they
+update **only** via their channel. Per-release work, each automatable:
 
-> Not wired yet — revisit once ≥2 channels are live.
+- AUR: bump `pkgver` + checksums, regen `.SRCINFO`, push (CI + AUR deploy key)
+- apt/dnf: re-run `publish.yml` with the new tag (or auto via `repository_dispatch` snippet)
+- Flathub: bump url+sha in `flathub/<app-id>` (or `flatpak-external-data-checker` bot)
+- Scoop: `checkver`/`autoupdate` present but must be run (scheduled Action)
+- winget: `wingetcreate update` (+ bots) · Homebrew: `brew bump-cask-pr`
+
+> None wired yet. See `UPDATES.md` for the exact commands + automation order.
 
 ---
 
