@@ -24,20 +24,25 @@
     <name>Fosslife</name>
   </developer>
 
-  <!-- TODO(Phase 2): replace with a real, reachable screenshot URL — Flathub validation
-       requires at least one screenshot that downloads and meets size rules. -->
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/fosslife/waterfowl/master/.github/screenshot.png</image>
-      <caption>Browsing a PostgreSQL database in Waterfowl</caption>
+      <image>https://raw.githubusercontent.com/fosslife/waterfowl/master/.github/screenshots/data-table.png</image>
+      <caption>Browsing PostgreSQL table data with type-aware columns</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/fosslife/waterfowl/master/.github/screenshots/schema-overview.png</image>
+      <caption>Schema overview — tables, views, functions and sequences</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/fosslife/waterfowl/master/.github/screenshots/welcome.png</image>
+      <caption>Recent connections on the welcome screen</caption>
     </screenshot>
   </screenshots>
 
   <content_rating type="oars-1.1" />
 
   <releases>
-    <!-- TODO(Phase 2): set the real release date of 0.2.2 (ISO 8601). -->
-    <release version="0.2.2" date="2026-06-01" />
+    <release version="0.2.2" date="2026-05-28" />
   </releases>
 
   <categories>

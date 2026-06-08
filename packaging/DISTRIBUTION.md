@@ -17,9 +17,31 @@
 
 ## ⏭️ Pick up next (start here in a new session)
 
-Work happens on branch **`packaging/distribution`**. The AUR `waterfowl-bin` files and this tracker are committed (`53cac10 feat: arch packaging`). Phase-1 wiring continues; nothing goes live until Phase 2.
+Work happens on branch **`packaging/distribution`**. **Phase 1 is complete for every channel we're pursuing; Phase 2 (publishing) is underway as of 2026-06-08.**
 
-Channels already wired up (Phase-1 done — validation/publish deferred to user, per Operating principle):
+### 🚀 Phase-2 status (what's actually live)
+
+**Linux — all four channels actioned:**
+- **apt** 🚀 LIVE · **dnf** 🚀 LIVE → `https://fosslife.github.io/packages/` (signed, verified)
+- **AUR `waterfowl-bin`** 🚀 LIVE → `yay -S waterfowl-bin`
+- **Flathub** 🚧 PR [#8918](https://github.com/flathub/flathub/pull/8918) submitted — awaiting bot build + maintainer review (multi-day)
+
+**Windows — wired, not yet published (needs a Windows box):**
+- **Scoop** ✅ wired → create `fosslife/scoop-bucket`, validate `scoop install`, resolve `extract_dir`/bin path
+- **winget** ✅ wired → `winget validate` + local install, then PR to `microsoft/winget-pkgs`
+
+**macOS — wired, not yet published (needs a Mac + signing decision):**
+- **Homebrew tap** ✅ wired → create `fosslife/homebrew-tap`; **gate = notarization** ($99/yr Apple Dev for a clean install, or ship unsigned + "Open Anyway"). Decision deferred by user.
+
+**Skipped / deferred:** Snap (§9, user chose to skip — Linux already covered), AUR from-source (§2), Chocolatey (§5, user-deferred).
+
+> **Next actionable:** Windows channels (Scoop+winget) when on a Windows box; macOS once the signing call is made. Monitor Flathub PR #8918 for bot feedback.
+
+---
+
+### Phase-1 wiring record (historical — all done)
+
+Channels wired up (manifests authored + committed):
 
 1. **AUR `waterfowl-bin`** — ✅ Phase-1 done. `PKGBUILD` + `.SRCINFO` authored and committed. (Local `makepkg -si` + launch already happened to run, but that was a bonus, not a gate.) Publish = Phase 2, user-owned. See §1.
 2. ~~**Updater guard (Strategy A)**~~ — ✅ **IMPLEMENTED 2026-05-31.** `updater_allowed` command (`src-tauri/src/commands/updater.rs`), registered in `lib.rs`, guarded at the top of `checkForUpdates()` in `Welcome.tsx`. Both backend (`cargo check`) and frontend (`tsc`) compile clean.
@@ -33,11 +55,12 @@ Channels already wired up (Phase-1 done — validation/publish deferred to user,
 
 7. **winget** (§4) — ✅ Phase-1 done. `packaging/winget/` three-file manifest (`Fosslife.Waterfowl`, NSIS x64, sha256 verified). PR + signing = Phase 2.
 
-Next channels to **wire up** (Phase 1):
+Never wired (deliberately skipped — Linux/Windows already covered):
 
-8. **Chocolatey** (§5) — `.nuspec` + install script. ← **next**
-9. **Snap** (§9) — `snapcraft.yaml`.
-10. **AUR `waterfowl` from-source** (§2).
+8. **Snap** (§9) — `snapcraft.yaml`. User chose to skip 2026-06-08.
+9. **AUR `waterfowl` from-source** (§2) — redundant with `waterfowl-bin`.
+
+Deferred (user decision): **Chocolatey** (§5, ❌) — Scoop + winget already cover Windows; revisit only at the very end if wanted.
 
 ---
 
@@ -147,24 +170,24 @@ Everything below targets the "you push" model, plus self-hosted repos as the pra
 
 ## Status overview
 
-Legend: ✅ done · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) · ❌ not pursuing (yet)
+Legend: 🚀 LIVE (published, Phase 2 done) · ✅ done (Phase-1 wired) · 🚧 in progress · ⏳ todo · 🔒 blocked (dependency) · ❌ not pursuing (yet)
 
 > "Status" = **Phase-1 wiring** status (manifest/recipe authored + committed). ✅ here does **not** mean published — all validation + go-live is Phase 2 (user-owned). "Blocked on" lists only real Phase-1 input gaps, never testing/publishing.
 
 | #   | Channel                                 | Install command                              | Status | Blocked on                    |
 | --- | --------------------------------------- | -------------------------------------------- | ------ | ----------------------------- |
-| 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | ✅     | — (publish = Phase 2)         |
+| 1   | **AUR (Arch)** `waterfowl-bin`          | `yay -S waterfowl-bin`                       | 🚀     | **LIVE** 2026-06-08           |
 | 2   | AUR (Arch) `waterfowl` (from source)    | `yay -S waterfowl`                           | ⏳     | —                             |
 | 3   | Scoop (Windows)                         | `scoop install waterfowl`                    | ✅     | — (publish = Phase 2)         |
 | 4   | winget (Windows)                        | `winget install Fosslife.Waterfowl`          | ✅     | — (PR + signing = Phase 2)    |
-| 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ⏳     | code signing (recommended)    |
+| 5   | Chocolatey (Windows)                    | `choco install waterfowl`                    | ❌     | deferred — Scoop+winget cover Windows |
 | 6   | Homebrew Cask (macOS) — own tap         | `brew install --cask fosslife/tap/waterfowl` | ✅     | — (publish + notarize = Ph 2) |
 | 7   | Homebrew Cask — `homebrew/cask` central | `brew install --cask waterfowl`              | ⏳     | notarization + popularity     |
-| 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | ✅     | — (PR + screenshot = Phase 2) |
+| 8   | Flathub (Linux, all distros)            | `flatpak install flathub <id>`               | 🚧     | **PR #8918 submitted** 2026-06-08 — awaiting bot build + review |
 | 9   | Snap Store (Linux)                      | `snap install waterfowl`                     | ⏳     | —                             |
-| 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | ✅     | — (publish = Phase 2)         |
+| 10  | Self-hosted apt repo (Debian/Ubuntu)    | `apt install waterfowl`                      | 🚀     | **LIVE** 2026-06-08           |
 | 11  | Ubuntu PPA (Launchpad)                  | `add-apt-repository ppa:…`                   | ❌     | (alt to #10)                  |
-| 12  | Self-hosted dnf repo (Fedora/RHEL)      | `dnf install waterfowl`                      | ✅     | — (publish = Phase 2)         |
+| 12  | Self-hosted dnf repo (Fedora/RHEL)      | `dnf install waterfowl`                      | 🚀     | **LIVE** 2026-06-08           |
 | 13  | Fedora COPR                             | `dnf copr enable …`                          | ❌     | (alt to #12)                  |
 | 14  | Official Debian                         | `apt install waterfowl`                      | ❌     | sponsor + ITP                 |
 | 15  | Official Fedora                         | `dnf install waterfowl`                      | ❌     | sponsor + review              |
@@ -180,9 +203,9 @@ These block multiple channels. Track them here.
 | ----------------------------------------- | --------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GitHub Releases automation                | everything                  | ✅     | `tauri-action` already attaches all bundles                                                                                                                                                                                              |
 | Stable download URLs + checksums          | all "you push" channels     | ✅     | URL base known; checksums computed per release                                                                                                                                                                                           |
-| Windows code signing (Authenticode OV/EV) | winget, choco (recommended) | ⏳     | unsigned ⇒ SmartScreen warnings                                                                                                                                                                                                          |
-| macOS Developer ID + notarization         | Homebrew Cask               | ⏳     | unsigned ⇒ Gatekeeper blocks                                                                                                                                                                                                             |
-| GPG repo signing key                      | apt/dnf self-hosted repos   | ✅     | Dedicated "Fosslife Packages" key generated by user 2026-06-01; org Actions secrets `GPG_PRIVATE_KEY`+`GPG_PASSPHRASE` set. Public key → `fosslife/packages` `keys/`.                                                                     |
+| Windows code signing (Authenticode OV/EV) | winget (optional)           | ⏳     | **Not required** — unsigned ⇒ SmartScreen click only. Free fix: **SignPath Foundation** (OSS). See Open decisions §2.                                                                                                                    |
+| macOS Developer ID + notarization         | Homebrew Cask               | ⏳     | **No free alternative** — $99/yr Apple Dev Program is the only route; else ship unsigned + "Open Anyway" workaround. See Open decisions §3.                                                                                              |
+| GPG repo signing key                      | apt/dnf self-hosted repos   | ✅     | Dedicated "Fosslife Packages" key (fpr `A336A8D1…D6BC79A7`) generated 2026-06-01. **Actions secrets `GPG_PRIVATE_KEY`+`GPG_PASSPHRASE` were originally set on the wrong repo (`fosslife/waterfowl`, different names) → first publish run failed with "no valid OpenPGP data". Re-set on `fosslife/packages` 2026-06-08; publish then succeeded.** Public key → `fosslife/packages` `keys/` + served at Pages root.       |
 | x86_64 macOS build                        | Intel mac users             | ⏳     | CI currently aarch64 only (commented out in release.yml)                                                                                                                                                                                 |
 | **Updater vs package-manager conflict**   | all packaged builds         | ✅     | Strategy A (runtime guard) implemented 2026-05-31: `updater_allowed` command gates `checkForUpdates()`. Linux → only AppImage (`$APPIMAGE`) self-updates; `WATERFOWL_PACKAGED` env opt-out for any channel. Spec in "Open decisions" §1. |
 
@@ -200,10 +223,11 @@ Files: `packaging/aur/waterfowl-bin/`
 - [x] `.SRCINFO` (generated with `makepkg --printsrcinfo > .SRCINFO`)
 - [x] Local build test: `makepkg -f` succeeds; package ships `/usr/bin/waterfowl`, `.desktop`, 3 icon sizes — verified
 - [x] Install + launch test: `makepkg -si` then `waterfowl` — **launches fine on Arch (verified 2026-05-29)**
-- **Phase-1 complete.** The steps below are **Phase 2 (user-owned)**, not pending agent work:
-  - [ ] _(Phase 2)_ Create AUR account + add SSH key (https://aur.archlinux.org)
-  - [ ] _(Phase 2)_ `git clone ssh://aur@aur.archlinux.org/waterfowl-bin.git`, copy in `PKGBUILD` + `.SRCINFO`, push
-  - [ ] _(Phase 2)_ Verify `yay -S waterfowl-bin` works on a clean-ish system
+- **🚀 PUBLISHED & LIVE 2026-06-08.** Staged a fresh git repo (`/home/spark/projects/waterfowl-bin-aur`, only `PKGBUILD` + `.SRCINFO`), committed, remote `ssh://aur@aur.archlinux.org/waterfowl-bin.git`. User pushed `master` (the SSH key is passphrase-protected → push run in the user's own terminal, not the agent's non-interactive shell). Verified live: `git ls-remote https://aur.archlinux.org/waterfowl-bin.git` → `refs/heads/master @ 6a8d8b3` (the staged commit). AUR RPC index lags a few min on a cron — ignore its transient `resultcount: 0`.
+  - [x] Create AUR account + add SSH key — done (key `SHA256:Zj6E…XPI`, `zetab@lily`)
+  - [x] Push `PKGBUILD` + `.SRCINFO` — done (commit `6a8d8b3`)
+  - [ ] _(Phase 2, optional)_ Verify `yay -S waterfowl-bin` installs on a clean-ish system
+  - [ ] _(on next release)_ bump `pkgver`, regen `.SRCINFO`, re-push from the staging repo
 
 > **Note:** upstream `.desktop` is still the Tauri template default (`Comment=A Tauri App`, empty `Categories`). Cosmetic, baked into the bundle — fix in `tauri.conf.json` bundle config, not here.
 
@@ -245,9 +269,11 @@ Kit at **`packaging/winget/`** — three manifests (schema 1.6.0) in the exact `
 
 `PackageIdentifier: Fosslife.Waterfowl`. **Phase-2 (user, Windows):** `winget validate` + local `--manifest` install, then `wingetcreate … --submit` or PR to winget-pkgs. **Before submit:** LICENSE must be live on `master` (LicenseUrl points there); set real ReleaseDate. Code signing optional (removes SmartScreen, doesn't block winget). Updater: can't set `WATERFOWL_PACKAGED` → self-update stays on (version-drift only, no corruption). Details in `packaging/winget/README.md`.
 
-### 5. Chocolatey (Windows) ⏳
+### 5. Chocolatey (Windows) ❌ DEFERRED (2026-06-02)
 
-`.nuspec` + install script; moderation queue. Can download installer from release URL.
+**Decision (user):** Windows is already covered by Scoop (#3) + winget (#4); a third
+Windows channel is redundant. Not wiring it up now — revisit only at the very end, and
+only if wanted. `.nuspec` + install script + moderation queue if/when revisited.
 
 ### 6. Homebrew Cask (macOS) — own tap ✅ (Phase-1 WIRED 2026-06-01)
 
@@ -268,7 +294,12 @@ Best broad-Linux coverage from one manifest. Kit at **`packaging/flatpak/`** (ap
 - `com.fosslife.waterfowl.yaml` — manifest. Runtime `org.gnome.Platform//47` (ships GTK3 + WebKitGTK-4.1 + libsoup3, exactly the binary's `NEEDED` libs — verified via `objdump`). Builds by **repackaging the released `.deb`** (`ar x` + `tar`), since compiling Tauri in the network-less flatpak sandbox is impractical. Pinned `sha256 d075e7a9…0e8757`.
 - `com.fosslife.waterfowl.desktop` + `.metainfo.xml` — corrected, app-id-named (the deb's baked-in `.desktop` is still the Tauri template default). **Both validated clean** (`desktop-file-validate`, `appstreamcli validate`).
 
-**Phase-2 (user):** `flatpak-builder` build + launch test; add a real screenshot + release date to the metainfo; PR to `flathub/flathub` on a `com.fosslife.waterfowl` branch. Steps in `packaging/flatpak/README.md`. Updater guard: no `$APPIMAGE` in flatpak → self-update already off, zero extra work.
+**🚧 SUBMITTED 2026-06-08 — [flathub/flathub PR #8918](https://github.com/flathub/flathub/pull/8918).** Done since Phase-1:
+- Release date set to real `2026-05-28`; **three real screenshots** committed to `fosslife/waterfowl` `master` at `.github/screenshots/{data-table,schema-overview,welcome}.png` (commit `ec39102`, via the GitHub Contents API since the SSH key is passphrase-locked) — all three verified live (200, `image/png`). Metainfo now references all three (default = data-table view); `appstreamcli validate` + `desktop-file-validate` both pass.
+- **`flathub.json` = `{"only-arches": ["x86_64"]}`** — the manifest repackages the amd64-only `.deb`, so aarch64 is skipped (Flathub builds both by default). Lives next to the manifest.
+- PR opened via fork `Sparkenstein/flathub`, branch `com.fosslife.waterfowl` off `new-pr`, **base = `new-pr`** (Flathub's submission branch, not `master`), title "Add com.fosslife.waterfowl".
+
+**Remaining (Flathub-side, mostly automatic/Phase-2):** wait for the Flatpak build bot to build the PR + post results; respond to maintainer review; on merge, a `flathub/com.fosslife.waterfowl` repo is created and `flatpak install flathub com.fosslife.waterfowl` works. `flatpak-builder` isn't on this box, so no local build test was run — the bot covers it. Updater guard: no `$APPIMAGE` in flatpak → self-update already off, zero extra work.
 
 ### 9. Snap ⏳
 
@@ -286,7 +317,9 @@ Best broad-Linux coverage from one manifest. Kit at **`packaging/flatpak/`** (ap
 
 **Deployed copy:** user mirrored the kit to `fosslife/packages` (local: `/home/spark/projects/packages`, pushed) + added the real public key (`keys/fosslife-packages.asc`, UID `Fosslife Packages <zetabytes.pp@gmail.com>`, fpr `A336A8D1D686BFCF46FFFF7B30EF7740D6BC79A7`) + LICENSE. `GPG_KEY_ID` is now pinned to that fingerprint in both `build-repo.sh` + `publish.yml` (both locations) — re-push `packages` after this edit.
 
-**Remaining (recorded in `packaging/repo/README.md`):** create the empty `gh-pages` branch + point Pages at it (Settings → Pages → Source = `gh-pages`/root). All install-testing on real Debian/Fedora boxes = Phase 2.
+**🚀 PUBLISHED & LIVE 2026-06-08** at **https://fosslife.github.io/packages/**. The `publish.yml` workflow (run `27121637196`) ingested the `Waterfowl-v0.2.2` `.deb`+`.rpm`, GPG-signed both repos, and force-pushed `gh-pages`. The workflow auto-bootstrapped `gh-pages` (no manual empty branch needed). Pages enabled via API (`gh-pages`/root); `fosslife/packages` flipped **public** (free-plan Pages requires it; the tree holds only tooling + the public key + LICENSE — no secrets). All live URLs verified 200: `deb/InRelease`, `deb/Release.gpg`, `deb/pool/waterfowl_0.2.2_amd64.deb`, `rpm/repodata/repomd.xml`(+`.asc`), the `.rpm`, and the public key (fpr confirmed `A336A8D1…D6BC79A7`).
+
+**Remaining = Phase-2 real-box install tests only:** Debian/Ubuntu `apt update && apt install waterfowl` and Fedora `dnf install waterfowl` (confirm `repo_gpgcheck` + the `%__gpg_sign_cmd` rpm macro signed cleanly — it did sign in CI). Install snippets are on the live landing page.
 
 > **rpm-signing caveat (Phase-2 watch item):** the `%__gpg_sign_cmd` macro in `build-repo.sh` is the one piece most sensitive to the runner's `rpm` version — verify it signs cleanly during Phase-2 validation.
 
@@ -352,10 +385,21 @@ Optionally layer Strategy B (Cargo feature) later for the from-source channels a
 
 ### Other open decisions (need user input before some channels)
 
-2. **Windows code signing cert** — buy an OV/EV Authenticode cert? Affects winget/choco UX.
-3. **macOS notarization** — enroll in Apple Developer Program ($99/yr)? Required for a smooth Homebrew Cask.
-4. **Hosting for apt/dnf repos** — GitHub Pages vs own server.
-5. **x86_64 macOS** — enable the commented-out Intel build in `release.yml`?
+> **Key finding (researched 2026-06-02):** signing only affects the **Windows** and **macOS** channels' *install UX* — it blocks nothing. **All Linux channels (apt/dnf/Flatpak/AUR) need zero paid signing** (we GPG-sign our own repo for free; Flatpak/AUR don't require it). Both Scoop+winget and Homebrew Cask *work unsigned*; signing only removes a one-time click. So everything is publishable for **$0**.
+
+2. **Windows code signing** — ⏳ **NOT required; free path exists.** Scoop + winget **accept unsigned installers** — the only cost is a SmartScreen "Run anyway" click. To remove it:
+   - **SignPath Foundation — FREE for OSS** (best fit). Conditions: OSI license (✅ MIT now), actively maintained, builds reproducible from source, **MFA on all maintainer + GitHub accounts**, every release manually approved. Does **not** help macOS.
+   - **Certum Open Source cert** — ~$30/yr (hardware token), common OSS choice.
+   - **Azure Trusted/Artifact Signing** — $9.99/mo, now open to **individual devs in US/Canada** (needs paid Azure sub + identity validation). Not free, so SignPath wins for OSS.
+   - Caveat: a fresh OV cert still earns SmartScreen reputation over downloads; instant-trust EV is ~$300+/yr.
+   - **Plan:** ship unsigned now (works today); apply to SignPath when the warning becomes worth removing. **$0.**
+3. **macOS notarization** — ⏳ **the only real "pay or accept friction" call.** **No free way to pass Gatekeeper for distribution** — the **$99/yr Apple Developer Program is the only official route** to sign + notarize. Ad-hoc signing is local-machine-only (useless for distribution). macOS 15 Sequoia **removed the easy right-click→Open bypass**; unsigned apps now need **System Settings → Privacy & Security → "Open Anyway"** on first launch (and `brew --cask` applies quarantine, so this hits Homebrew installs too). Two options:
+   - **(a) Pay $99/yr** — only clean install experience. Many OSS devs do exactly this for macOS since there's no alternative.
+   - **(b) Ship unsigned `.dmg`** via the tap + document the "Open Anyway" workaround — free, uglier, tolerable for a dev-tool audience.
+   - The Tauri **updater's minisign key (in `tauri.conf.json`) is separate and free** — unaffected either way.
+   - **Recommendation:** defer to the end-of-project pass; pay $99 only if a polished macOS install matters then.
+4. **Hosting for apt/dnf repos** — ✅ DECIDED: GitHub Pages (`fosslife/packages`). See "What we need from the user".
+5. **x86_64 macOS** — enable the commented-out Intel build in `release.yml`? (Also gates the Homebrew Cask Intel arch.) Still open.
 
 ---
 
@@ -375,9 +419,14 @@ On version bump → CI builds & publishes GitHub Release → automated manifest 
 
 ## Changelog
 
+- **2026-06-08** — **🚧 Flathub PR submitted ([#8918](https://github.com/flathub/flathub/pull/8918)).** Last Linux channel. Committed three real screenshots (`dev/3,2,1.png` → `.github/screenshots/data-table,schema-overview,welcome.png`) to `fosslife/waterfowl` `master` via the GitHub Contents API (commit `ec39102`; SSH key is passphrase-locked so normal `git push` can't run in the agent's shells). Updated the metainfo to reference all three (real date `2026-05-28`); re-validated clean. Added `flathub.json` `{"only-arches":["x86_64"]}` (manifest repackages the amd64-only `.deb`). Forked `flathub/flathub`, created branch `com.fosslife.waterfowl` off `new-pr`, added the 4 files (manifest+desktop+metainfo+flathub.json) as one commit, opened PR against base `new-pr` titled "Add com.fosslife.waterfowl". Now awaiting the Flatpak build bot + maintainer review (multi-day). Status #8 → 🚧 submitted. **All Linux channels now actioned: apt 🚀, dnf 🚀, AUR 🚀, Flathub 🚧 (in review).** Remaining OSes: Windows (Scoop+winget, need a Windows box) + macOS (Homebrew, needs the signing decision).
+- **2026-06-08** — **🚀 AUR `waterfowl-bin` is LIVE.** Staged a clean git repo at `/home/spark/projects/waterfowl-bin-aur` (`PKGBUILD` + `.SRCINFO` only, commit `6a8d8b3`, remote `ssh://aur@aur.archlinux.org/waterfowl-bin.git`); user ran the `git push` in their own terminal (passphrase-protected SSH key can't be unlocked in the agent's non-interactive shells). Confirmed via `git ls-remote https://aur.archlinux.org/waterfowl-bin.git` → `refs/heads/master @ 6a8d8b3`. Status #1 → 🚀 LIVE. Linux now: apt 🚀, dnf 🚀, AUR 🚀; **Flathub** is the last Linux channel (screenshot ready at `dev/1.png`).
+- **2026-06-08** — **🚀 PHASE 2 STARTED — apt/dnf repo is LIVE.** Decision: skip Snap (Linux already covered by AUR+Flatpak+apt+dnf), publish Linux channels first; macOS signing deferred. Published the self-hosted apt+dnf repo to **https://fosslife.github.io/packages/**. Hit one real blocker: the `GPG_PRIVATE_KEY`/`GPG_PASSPHRASE` Actions secrets had been set on `fosslife/waterfowl` (wrong repo, different names) so the first `publish.yml` run failed ("no valid OpenPGP data found"). User re-set both on `fosslife/packages`; re-run `27121637196` succeeded — signed apt (`InRelease`/`Release.gpg`) + dnf (`repomd.xml.asc`) metadata force-pushed to `gh-pages`. Made `fosslife/packages` public (free-plan Pages requirement; tree has no secrets) and enabled Pages (`gh-pages`/root) via API. Verified all live URLs return 200 and the served public key fingerprint matches `A336A8D1…D6BC79A7`. Status #10/#12 → 🚀 LIVE. **Next Phase-2 targets: AUR `waterfowl-bin` publish (needs user AUR account+SSH key) + Flathub PR (needs a real screenshot).**
 - **2026-05-29** — Created tracker on branch `packaging/distribution`. Built AUR `waterfowl-bin` (PKGBUILD + .SRCINFO), verified locally via `makepkg -si` + launch — only AUR publish remains. Locked updater strategy (Strategy A, runtime guard) — spec written, not implemented. Work left **uncommitted** at user's request.
 - **2026-05-31** — Earlier work committed as `53cac10 feat: arch packaging`. Implemented updater guard (Strategy A): added `updater_allowed` Tauri command + registered it + guarded the updater check; `cargo check` and `tsc` both clean. Publishing to AUR/all channels deliberately held open until packaging is ready across most platforms.
 - **2026-05-31** — Completed the updater UX: replaced the silent auto-install with an app-wide `<UpdateBanner />` (`src/components/update-banner/`, mounted in `AppLayout`) that checks on mount (gated by `updater_allowed`), then notifies → user clicks → downloads with progress → relaunches. All updater logic removed from `Welcome.tsx`. Updater story now complete.
+- **2026-06-02** — **Signing options researched + recorded** (Open decisions §2/§3, cross-cutting prereqs table). Findings: Linux needs zero paid signing; Windows (Scoop+winget) works unsigned (SmartScreen click), free removal via **SignPath Foundation** for OSS; macOS has **no free notarization path** — $99/yr Apple Dev Program or ship unsigned + "Open Anyway" (Sequoia removed the right-click bypass). Everything publishable for $0; signing only removes friction clicks.
+- **2026-06-02** — **Chocolatey deferred (user decision).** Scoop (#3) + winget (#4) already cover Windows; a third Windows channel is redundant. Marked #5 ❌, revisit only at the very end if wanted. Next wiring target: Snap.
 - **2026-06-01** — **winget wired up (Phase 1).** Kit at `packaging/winget/manifests/f/Fosslife/Waterfowl/0.2.2/`: three manifests (installer/defaultLocale/version, schema 1.6.0), `PackageIdentifier Fosslife.Waterfowl`, NSIS x64 `nullsoft` installer, `Scope: user`, sha256 `2727…169B57` re-verified against the live `x64-setup.exe`. No YAML/winget tooling on this box → `winget validate` deferred to Phase-2 Windows. Pre-submit reminders: LICENSE on `master` (LicenseUrl target) + real ReleaseDate. Status #4 → ✅. Next wiring target: Chocolatey.
 - **2026-06-01** — **Homebrew Cask wired up (Phase 1).** Kit at `packaging/homebrew/` for the shared tap `fosslife/homebrew-tap`: `Casks/waterfowl.rb` with real dmg `sha256 aa502740…54c71` (computed from `waterfowl_0.2.2_aarch64.dmg`), `app "waterfowl.app"` (confirmed from the app.tar.gz), `auto_updates true`, `depends_on arch: :arm64` + `macos: ">= :big_sur"`, `livecheck` on the release tag. ruby/brew not on this box → DSL lint deferred to Phase-2 Mac. Real Phase-2 gate = notarization (unsigned dmg → Gatekeeper block). Status #6 → ✅. Next wiring target: winget.
 - **2026-06-01** — **Flathub wired up (Phase 1).** Kit at `packaging/flatpak/`: manifest `com.fosslife.waterfowl.yaml` (deb-repackage approach, runtime `org.gnome.Platform//47`, deb `sha256 d075e7a9…0e8757`), plus app-id-named `.desktop` + `.metainfo.xml` (the deb's baked-in desktop is the Tauri template default). Verified locally: `desktop-file-validate` ✓, `appstreamcli validate` ✓, deb-extraction commands run against the real asset ✓, and the binary's `NEEDED` libs (webkit2gtk-4.1/javascriptcoregtk-4.1/libsoup-3.0/gtk-3) all live in the GNOME runtime (objdump-confirmed). Status #8 → ✅. Phase-2: flatpak-builder test + real screenshot + flathub/flathub PR. Next wiring target: Homebrew tap.
