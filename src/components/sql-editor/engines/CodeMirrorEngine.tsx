@@ -13,12 +13,20 @@ import {
   useRef,
   useMemo,
 } from "react";
-import { EditorState, Compartment, Prec } from "@codemirror/state";
+import {
+  EditorState,
+  Compartment,
+  Prec,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
 import {
   EditorView,
   keymap,
   placeholder as placeholderExt,
   lineNumbers,
+  Decoration,
+  type DecorationSet,
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { sql, PostgreSQL, SQLConfig } from "@codemirror/lang-sql";
@@ -41,6 +49,37 @@ import type {
 const editableCompartment = new Compartment();
 const diagnosticsCompartment = new Compartment();
 const sqlLanguageCompartment = new Compartment();
+
+/**
+ * Active-statement highlight. The consumer decides which span to mark (it owns
+ * statement parsing); the editor just renders it, so execution never depends on
+ * a guess the user can't see.
+ */
+const setActiveStatementEffect = StateEffect.define<{
+  from: number;
+  to: number;
+} | null>();
+
+const activeStatementMark = Decoration.mark({ class: "cm-activeStatement" });
+
+const activeStatementField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(decorations, transaction) {
+    // Keep the mark pinned to its text as edits shift offsets around.
+    let next = decorations.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (effect.is(setActiveStatementEffect)) {
+        const range = effect.value;
+        next =
+          range && range.to > range.from
+            ? Decoration.set([activeStatementMark.range(range.from, range.to)])
+            : Decoration.none;
+      }
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 /**
  * Build SQL schema configuration for CodeMirror's sql() language
@@ -89,6 +128,10 @@ const editorTheme = EditorView.theme({
   },
   ".cm-activeLine": {
     backgroundColor: "rgba(0, 243, 255, 0.04)",
+  },
+  ".cm-activeStatement": {
+    backgroundColor: "rgba(0, 243, 255, 0.07)",
+    borderRadius: "2px",
   },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection":
     {
@@ -192,6 +235,8 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
       value,
       onChange,
       onExecute,
+      onExecuteScript,
+      onCursorActivity,
       schemaData,
       diagnostics,
       placeholder,
@@ -207,10 +252,14 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
     const onExecuteRef = useRef(onExecute);
+    const onExecuteScriptRef = useRef(onExecuteScript);
+    const onCursorActivityRef = useRef(onCursorActivity);
 
     // Keep refs updated
     onChangeRef.current = onChange;
     onExecuteRef.current = onExecute;
+    onExecuteScriptRef.current = onExecuteScript;
+    onCursorActivityRef.current = onCursorActivity;
 
     // Build SQL schema for completions
     const sqlSchema = useMemo(() => buildSqlSchema(schemaData), [schemaData]);
@@ -234,15 +283,18 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
       const executeKeymap = Prec.highest(
         keymap.of([
           {
+            key: "Ctrl-Shift-Enter",
+            mac: "Cmd-Shift-Enter",
+            run: () => {
+              onExecuteScriptRef.current?.();
+              return true;
+            },
+          },
+          {
             key: "Ctrl-Enter",
             mac: "Cmd-Enter",
-            run: (view) => {
-              const selection = view.state.selection.main;
-              const doc = view.state.doc.toString();
-              const query = selection.empty
-                ? doc
-                : doc.slice(selection.from, selection.to);
-              onExecuteRef.current?.(query);
+            run: () => {
+              onExecuteRef.current?.();
               return true;
             },
           },
@@ -252,6 +304,15 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
       const updateListener = EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           onChangeRef.current?.(update.state.doc.toString());
+        }
+        // Both matter: moving the cursor changes which statement is active, and
+        // editing text can change where the current statement ends.
+        if (update.docChanged || update.selectionSet) {
+          const selection = update.state.selection.main;
+          onCursorActivityRef.current?.(selection.head, {
+            from: selection.from,
+            to: selection.to,
+          });
         }
       });
 
@@ -267,6 +328,7 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
           bracketMatching(),
           indentOnInput(),
           highlightSelectionMatches(),
+          activeStatementField,
 
           // Keymaps
           keymap.of([
@@ -410,12 +472,15 @@ export const CodeMirrorEngine = forwardRef<SqlEditorRef, SqlEditorProps>(
         });
       },
       focus: () => viewRef.current?.focus(),
-      getSelection: () => {
-        const view = viewRef.current;
-        if (!view) return "";
-        const selection = view.state.selection.main;
-        const doc = view.state.doc.toString();
-        return selection.empty ? doc : doc.slice(selection.from, selection.to);
+      getCursorPosition: () => viewRef.current?.state.selection.main.head ?? 0,
+      getSelectionRange: () => {
+        const selection = viewRef.current?.state.selection.main;
+        return { from: selection?.from ?? 0, to: selection?.to ?? 0 };
+      },
+      setActiveStatement: (range) => {
+        viewRef.current?.dispatch({
+          effects: setActiveStatementEffect.of(range),
+        });
       },
       insertText: (text: string) => {
         const view = viewRef.current;

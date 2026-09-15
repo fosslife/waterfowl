@@ -44,6 +44,12 @@ export interface SqlEditorDiagnostic {
   message: string;
 }
 
+/** A span of the document, as character offsets. */
+export interface EditorRange {
+  from: number;
+  to: number;
+}
+
 export interface SqlEditorProps {
   /** Initial SQL content */
   initialValue?: string;
@@ -54,8 +60,17 @@ export interface SqlEditorProps {
   /** Called when editor content changes */
   onChange?: (value: string) => void;
 
-  /** Called when user executes query (Ctrl/Cmd+Enter) */
-  onExecute?: (query: string) => void;
+  /**
+   * Called when the user asks to execute (Ctrl/Cmd+Enter). The editor doesn't
+   * decide *what* runs — the consumer reads the cursor or selection and picks.
+   */
+  onExecute?: () => void;
+
+  /** Called when the user asks to run the whole script (Ctrl/Cmd+Shift+Enter). */
+  onExecuteScript?: () => void;
+
+  /** Called whenever the cursor moves or the selection changes. */
+  onCursorActivity?: (position: number, selection: EditorRange) => void;
 
   /** Schema data for autocomplete */
   schemaData?: SchemaCompletionData;
@@ -92,8 +107,17 @@ export interface SqlEditorRef {
   /** Focus the editor */
   focus: () => void;
 
-  /** Get selected text (or full text if nothing selected) */
-  getSelection: () => string;
+  /** Current cursor offset. */
+  getCursorPosition: () => number;
+
+  /** Current selection. `from === to` means nothing is selected. */
+  getSelectionRange: () => EditorRange;
+
+  /**
+   * Tint a span to show which statement will run. Pass null to clear it.
+   * Purely visual — it has no bearing on what executes.
+   */
+  setActiveStatement: (range: EditorRange | null) => void;
 
   /** Insert text at cursor position */
   insertText: (text: string) => void;

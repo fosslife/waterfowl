@@ -480,7 +480,12 @@ function ConnectionWorkspace() {
           {/* SQL Editor tab */}
           {activeTab?.type === "sql" && (
             <SqlEditorTab
+              // Keyed so each SQL tab gets its own component instance: without
+              // it, switching between two SQL tabs reuses the first one's
+              // editor state and session.
+              key={activeTab.id}
               connectionId={id!}
+              sessionId={activeTab.id}
               initialQuery={(activeTab as SqlTab).queryContent}
               onQueryChange={(query) =>
                 updateTab(activeTab.id, {

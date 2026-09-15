@@ -118,7 +118,42 @@ pub enum DriverConnection {
     // Future: SQLite(sqlite::SqliteDriver),
 }
 
+/// A database session pinned to one editor tab.
+///
+/// Statements sent through a session all run on the same backend connection, so
+/// transaction control and other session state behave as typed. See
+/// `postgres::PgSession` for why that matters.
+#[derive(Clone)]
+pub enum DriverSession {
+    Postgres(postgres::PgSession),
+    // Future: MySQL(mysql::MySqlSession),
+}
+
+impl DriverSession {
+    /// Run one statement on this session. The bool is true when the session's
+    /// connection had to be replaced, discarding any state on it.
+    pub async fn execute_query(&self, query: &str) -> Result<(QueryResult, bool), String> {
+        match self {
+            DriverSession::Postgres(session) => session.execute_query(query).await,
+        }
+    }
+
+    /// Close the session, rolling back any transaction left open on it.
+    pub async fn close(&self) {
+        match self {
+            DriverSession::Postgres(session) => session.close().await,
+        }
+    }
+}
+
 impl DriverConnection {
+    /// Open a session against this connection's database.
+    pub fn open_session(&self) -> DriverSession {
+        match self {
+            DriverConnection::Postgres(driver) => DriverSession::Postgres(driver.open_session()),
+        }
+    }
+
     /// Create a new driver connection based on the config's driver type.
     pub async fn connect(config: &ConnectionConfig) -> Result<Self, String> {
         match config.driver.to_lowercase().as_str() {

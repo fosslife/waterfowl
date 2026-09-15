@@ -1,13 +1,16 @@
 //! PostgreSQL database driver implementation.
 
 mod decode;
+mod exec;
+mod session;
 mod stream;
 
+pub use session::PgSession;
 pub use stream::StreamProgress;
 
 use async_trait::async_trait;
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use sqlx::Row;
+use sqlx::{Connection, Row};
 
 use crate::drivers::DatabaseDriver;
 use crate::types::{
@@ -23,6 +26,10 @@ use crate::types::{
 #[derive(Clone)]
 pub struct PostgresDriver {
     pool: PgPool,
+    /// Kept so editor sessions can open their own connections instead of
+    /// pinning one from the pool. Contains the password, exactly as the pool's
+    /// own connect options already do.
+    url: String,
 }
 
 impl PostgresDriver {
@@ -36,7 +43,12 @@ impl PostgresDriver {
             .await
             .map_err(|e| e.to_string())?;
 
-        Ok(Self { pool })
+        Ok(Self { pool, url })
+    }
+
+    /// Create a session that runs statements on a dedicated connection.
+    pub fn open_session(&self) -> PgSession {
+        PgSession::new(self.url.clone())
     }
 }
 
@@ -1051,24 +1063,16 @@ impl DatabaseDriver for PostgresDriver {
     }
 
     async fn execute_query(&self, query: &str) -> Result<QueryResult, String> {
-        let start_time = std::time::Instant::now();
+        // Take a dedicated connection so that a truncated result set can be
+        // thrown away along with it, rather than poisoning a pooled one.
+        let mut conn = self.pool.acquire().await.map_err(|e| e.to_string())?;
+        let outcome = exec::run_statement(&mut conn, query).await?;
 
-        let rows = sqlx::query(query)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        if outcome.connection_spent {
+            let _ = conn.detach().close().await;
+        }
 
-        let execution_time_ms = start_time.elapsed().as_millis();
-        let rows_affected = rows.len() as u64;
-
-        let (results, columns_info) = decode::decode_rows(&rows, None);
-
-        Ok(QueryResult {
-            rows: results,
-            columns: columns_info,
-            rows_affected,
-            execution_time_ms,
-        })
+        Ok(outcome.result)
     }
 
     async fn close(&self) {

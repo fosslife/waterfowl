@@ -5,6 +5,7 @@ import {
   useCallback,
   ReactNode,
 } from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 // Tab types
 export type TabType =
@@ -213,6 +214,15 @@ export function TabProvider({ children }: TabProviderProps) {
       // Don't close dashboard tab
       if (tabId === "dashboard") return;
 
+      // A SQL tab owns a pinned database session, and closing the tab is what
+      // releases it. Unmounting is not: switching away and back has to leave an
+      // open transaction untouched.
+      if (tabs.find((t) => t.id === tabId)?.type === "sql") {
+        invoke("close_session", { sessionId: tabId }).catch((e) =>
+          console.error("Failed to close SQL session:", e),
+        );
+      }
+
       setTabs((prev) => {
         const index = prev.findIndex((t) => t.id === tabId);
         const newTabs = prev.filter((t) => t.id !== tabId);
@@ -227,7 +237,7 @@ export function TabProvider({ children }: TabProviderProps) {
         return newTabs;
       });
     },
-    [activeTabId],
+    [activeTabId, tabs],
   );
 
   const setActiveTab = useCallback((tabId: string) => {

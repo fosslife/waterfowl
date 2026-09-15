@@ -3,10 +3,10 @@
 //! Handles database queries, schema introspection, and data retrieval.
 
 use crate::drivers::DatabaseDriver;
-use crate::state::AppState;
+use crate::state::{AppState, SessionEntry};
 use crate::types::{
     ColumnFilter, DatabaseInfo, EnumValues, FunctionInfo, PaginatedTableData, QueryResult,
-    SchemaObjects, SequenceInfo, TableStructure,
+    SchemaObjects, ScriptResult, ScriptStatementResult, SequenceInfo, TableStructure,
 };
 
 /// Helper to get a cloned connection from state.
@@ -180,13 +180,132 @@ pub async fn get_enum_values(
     conn.get_enum_values(&table, &column, &schema_name).await
 }
 
+/// Run a list of statements in order on one session.
+///
+/// The statements arrive already split by the editor, which is the only place
+/// that knows where the user's cursor and selection are. Nothing is wrapped in
+/// a transaction implicitly — a script does exactly what it says, and `BEGIN` /
+/// `COMMIT` in the text work because every statement runs on the same session.
+///
+/// Execution stops at the first error, and also if a statement costs us the
+/// session: everything after that would run on a fresh connection, outside any
+/// transaction the script had opened.
+#[tauri::command]
+pub async fn execute_script(
+    state: tauri::State<'_, AppState>,
+    session_id: String,
+    statements: Vec<String>,
+) -> Result<ScriptResult, String> {
+    let session = state
+        .sessions
+        .lock()
+        .unwrap()
+        .get(&session_id)
+        .map(|entry| entry.session.clone())
+        .ok_or_else(|| "No session for this editor tab".to_string())?;
+
+    let start_time = std::time::Instant::now();
+    let total = statements.len();
+    let mut results: Vec<ScriptStatementResult> = Vec::with_capacity(total);
+
+    for (index, statement) in statements.into_iter().enumerate() {
+        match session.execute_query(&statement).await {
+            Ok((mut result, session_reset)) => {
+                result.session_reset = session_reset;
+                results.push(ScriptStatementResult {
+                    index,
+                    statement,
+                    result: Some(result),
+                    error: None,
+                });
+                if session_reset {
+                    break;
+                }
+            }
+            Err(error) => {
+                results.push(ScriptStatementResult {
+                    index,
+                    statement,
+                    result: None,
+                    error: Some(error),
+                });
+                break;
+            }
+        }
+    }
+
+    Ok(ScriptResult {
+        stopped_early: results.len() < total,
+        statements: results,
+        execution_time_ms: start_time.elapsed().as_millis(),
+    })
+}
+
+/// Open a pinned session for a SQL editor tab, keyed by `session_id`.
+///
+/// Idempotent: reopening an existing session is a no-op, so a tab component
+/// that remounts (switching away and back) keeps the session it had, along with
+/// any transaction open on it.
+#[tauri::command]
+pub async fn open_session(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    session_id: String,
+) -> Result<(), String> {
+    let conn = get_connection(&state, &id)?;
+    let mut sessions = state.sessions.lock().unwrap();
+    sessions.entry(session_id).or_insert_with(|| SessionEntry {
+        connection_id: id,
+        session: conn.open_session(),
+    });
+    Ok(())
+}
+
+/// Close a session and release its connection. Call this when the tab is
+/// closed, not when it is merely hidden.
+#[tauri::command]
+pub async fn close_session(
+    state: tauri::State<'_, AppState>,
+    session_id: String,
+) -> Result<(), String> {
+    let entry = state.sessions.lock().unwrap().remove(&session_id);
+    if let Some(entry) = entry {
+        entry.session.close().await;
+    }
+    Ok(())
+}
+
 /// Execute an arbitrary SQL query.
+///
+/// With a `session_id` the statement runs on that tab's pinned connection, so
+/// transaction control and other session state carry across calls. Without one
+/// it runs on a pooled connection, which is fine for one-shot queries that
+/// depend on nothing before them.
 #[tauri::command]
 pub async fn execute_query(
     state: tauri::State<'_, AppState>,
     id: String,
     query: String,
+    session_id: Option<String>,
 ) -> Result<QueryResult, String> {
-    let conn = get_connection(&state, &id)?;
-    conn.execute_query(&query).await
+    let session = session_id.and_then(|sid| {
+        state
+            .sessions
+            .lock()
+            .unwrap()
+            .get(&sid)
+            .map(|entry| entry.session.clone())
+    });
+
+    match session {
+        Some(session) => {
+            let (mut result, session_reset) = session.execute_query(&query).await?;
+            result.session_reset = session_reset;
+            Ok(result)
+        }
+        None => {
+            let conn = get_connection(&state, &id)?;
+            conn.execute_query(&query).await
+        }
+    }
 }

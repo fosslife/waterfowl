@@ -95,7 +95,42 @@ pub struct PaginatedTableData {
 pub struct QueryResult {
     pub rows: Vec<Map<String, Value>>,
     pub columns: Vec<ColumnInfo>,
+    /// Rows touched as reported by the server's command tag. This is the only
+    /// meaningful count for `INSERT`/`UPDATE`/`DELETE` without `RETURNING`,
+    /// where `rows` comes back empty.
     pub rows_affected: u64,
+    /// True when the result set was larger than the driver's row cap and
+    /// `rows` holds only the first chunk of it.
+    pub truncated: bool,
+    /// True when running this statement cost the editor tab its session — any
+    /// open transaction was rolled back and session settings are gone. Only
+    /// ever set for statements run on a session.
+    #[serde(default)]
+    pub session_reset: bool,
+    pub execution_time_ms: u128,
+}
+
+/// Outcome of one statement within a script run.
+#[derive(Serialize)]
+pub struct ScriptStatementResult {
+    /// Position of this statement in the submitted script.
+    pub index: usize,
+    /// The statement as sent, so the log can show what ran.
+    pub statement: String,
+    /// The result, when the statement succeeded.
+    pub result: Option<QueryResult>,
+    /// The failure, when it didn't. A script stops at its first error.
+    pub error: Option<String>,
+}
+
+/// Result of running a whole script.
+#[derive(Serialize)]
+pub struct ScriptResult {
+    /// One entry per statement *attempted* — shorter than the submitted script
+    /// when execution stopped early.
+    pub statements: Vec<ScriptStatementResult>,
+    /// True when execution stopped before the end of the script.
+    pub stopped_early: bool,
     pub execution_time_ms: u128,
 }
 

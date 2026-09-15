@@ -55,6 +55,9 @@ pub fn run() {
             commands::get_table_structure,
             commands::get_enum_values,
             commands::execute_query,
+            commands::execute_script,
+            commands::open_session,
+            commands::close_session,
             // Export commands
             commands::export_table_streaming,
             commands::cancel_export,

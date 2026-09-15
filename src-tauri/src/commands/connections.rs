@@ -33,6 +33,13 @@ pub async fn establish_connection(
 /// Close an active database connection.
 #[tauri::command]
 pub async fn close_connection(state: tauri::State<'_, AppState>, id: String) -> Result<(), String> {
+    // Editor sessions hold their own connections to this database, so they have
+    // to go too — otherwise they would sit open against a database the user
+    // believes they have disconnected from.
+    for session in state.take_sessions_for(&id) {
+        session.close().await;
+    }
+
     let conn = {
         let mut connections = state.connections.lock().unwrap();
         connections.remove(&id)

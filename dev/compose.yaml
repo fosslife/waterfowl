@@ -1,0 +1,41 @@
+# Local PostgreSQL for Waterfowl development.
+#
+# This machine runs podman, not docker, so the commands below use `podman
+# compose`. The file is plain Compose spec — `docker compose` works the same
+# way on machines that have it.
+#
+#   podman compose -f dev/compose.yaml up -d
+#   pnpm seed                                     # populates waterfowl_test
+#   podman compose -f dev/compose.yaml down -v    # stop and drop the data
+#
+# `podman compose` delegates to the docker-compose binary and talks to it over
+# the rootless podman socket. If it errors out about the socket, run
+# `systemctl --user start podman.socket` once.
+#
+# Credentials and database name match the connection string hardcoded in
+# dev/seed.ts: postgresql://postgres:postgres@localhost:5432/waterfowl_test
+
+# Without this the project name would default to the directory name, "dev".
+name: waterfowl
+
+services:
+  postgres:
+    # Fully qualified so podman doesn't prompt for a registry.
+    image: docker.io/library/postgres:17-alpine
+    container_name: waterfowl-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: waterfowl_test
+    ports:
+      - "5432:5432"
+    volumes:
+      - waterfowl-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d waterfowl_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  waterfowl-pgdata:
