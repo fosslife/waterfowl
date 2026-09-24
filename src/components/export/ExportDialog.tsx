@@ -13,6 +13,11 @@ import {
   type ExportFormat,
 } from "@services/exporters";
 import { type CsvOptions, DEFAULT_CSV_OPTIONS } from "@services/exporters/csv";
+import {
+  type JsonOptions,
+  DEFAULT_JSON_OPTIONS,
+} from "@services/exporters/json";
+import { type SqlOptions, DEFAULT_SQL_OPTIONS } from "@services/exporters/sql";
 import type { ColumnFilter } from "@components/ui/data-table/ColumnFilter/types";
 import styles from "./ExportDialog.module.css";
 
@@ -134,6 +139,8 @@ export function ExportDialog({
   );
   const [formatId, setFormatId] = useState<string>(EXPORT_FORMATS[0].id);
   const [csvOpts, setCsvOpts] = useState<CsvOptions>(DEFAULT_CSV_OPTIONS);
+  const [jsonOpts, setJsonOpts] = useState<JsonOptions>(DEFAULT_JSON_OPTIONS);
+  const [sqlOpts, setSqlOpts] = useState<SqlOptions>(DEFAULT_SQL_OPTIONS);
   const [run, setRun] = useState<RunState>({ kind: "idle" });
 
   // Track the latest export id so the cancel button knows what to abort.
@@ -144,6 +151,8 @@ export function ExportDialog({
     setScope(isSelectionMode ? "selection" : "page");
     setFormatId(EXPORT_FORMATS[0].id);
     setCsvOpts(DEFAULT_CSV_OPTIONS);
+    setJsonOpts(DEFAULT_JSON_OPTIONS);
+    setSqlOpts(DEFAULT_SQL_OPTIONS);
     setRun({ kind: "idle" });
   }, [isOpen, isSelectionMode]);
 
@@ -204,7 +213,7 @@ export function ExportDialog({
         toast.error(`Export failed: ${msg}`);
       }
     },
-    [format, formatId, columns, source, scope, csvOpts, toast],
+    [format, formatId, columns, source, scope, csvOpts, jsonOpts, sqlOpts, toast],
   );
 
   // Read the per-format option blob to pass to the format implementation
@@ -212,6 +221,13 @@ export function ExportDialog({
   // format only needs a new branch here.
   function getOptionsFor(id: string): any {
     if (id === "csv") return csvOpts;
+    if (id === "json") return jsonOpts;
+    if (id === "sql") {
+      // The target table isn't a user setting — it's whatever object the
+      // dialog was opened on. (The streamed path re-derives these server-side
+      // from the same source; this is for the in-memory path.)
+      return { ...sqlOpts, table: source.name, schema: source.schema };
+    }
     return {};
   }
 
@@ -287,7 +303,17 @@ export function ExportDialog({
         if (unlisten) unlisten();
       }
     },
-    [format, formatId, source, scope, activeFilters, csvOpts, toast],
+    [
+      format,
+      formatId,
+      source,
+      scope,
+      activeFilters,
+      csvOpts,
+      jsonOpts,
+      sqlOpts,
+      toast,
+    ],
   );
 
   const handleExport = useCallback(() => {
@@ -491,6 +517,131 @@ export function ExportDialog({
                     disabled={busy}
                   />
                   Include header row
+                </label>
+              </div>
+            </div>
+          )}
+
+          {formatId === "json" && (
+            <div className={styles.section}>
+              <div className={styles.sectionLabel}>JSON Options</div>
+              <div className={styles.optionsGrid}>
+                <div className={styles.field}>
+                  <label className={styles.fieldLabel} htmlFor="json-layout">
+                    Layout
+                  </label>
+                  <select
+                    id="json-layout"
+                    className={styles.select}
+                    value={jsonOpts.layout}
+                    onChange={(e) =>
+                      setJsonOpts((o) => ({
+                        ...o,
+                        layout: e.target.value as JsonOptions["layout"],
+                      }))
+                    }
+                    disabled={busy}
+                  >
+                    <option value="array">JSON array</option>
+                    <option value="ndjson">Newline-delimited (ndjson)</option>
+                  </select>
+                </div>
+                <label className={styles.checkboxField}>
+                  <input
+                    type="checkbox"
+                    checked={jsonOpts.pretty}
+                    onChange={(e) =>
+                      setJsonOpts((o) => ({ ...o, pretty: e.target.checked }))
+                    }
+                    disabled={busy || jsonOpts.layout === "ndjson"}
+                  />
+                  Pretty-print
+                </label>
+                <label className={styles.checkboxField}>
+                  <input
+                    type="checkbox"
+                    checked={jsonOpts.include_nulls}
+                    onChange={(e) =>
+                      setJsonOpts((o) => ({
+                        ...o,
+                        include_nulls: e.target.checked,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  Include null fields
+                </label>
+              </div>
+            </div>
+          )}
+
+          {formatId === "sql" && (
+            <div className={styles.section}>
+              <div className={styles.sectionLabel}>SQL Options</div>
+              <div className={styles.optionsGrid}>
+                <div className={styles.field}>
+                  <label className={styles.fieldLabel} htmlFor="sql-batch">
+                    Rows per statement
+                  </label>
+                  <input
+                    id="sql-batch"
+                    className={styles.select}
+                    type="number"
+                    min={1}
+                    value={sqlOpts.rows_per_statement}
+                    onChange={(e) =>
+                      setSqlOpts((o) => ({
+                        ...o,
+                        rows_per_statement: Math.max(
+                          1,
+                          Number(e.target.value) || 1,
+                        ),
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                </div>
+                <label className={styles.checkboxField}>
+                  <input
+                    type="checkbox"
+                    checked={sqlOpts.include_schema}
+                    onChange={(e) =>
+                      setSqlOpts((o) => ({
+                        ...o,
+                        include_schema: e.target.checked,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  Qualify table with schema
+                </label>
+                <label className={styles.checkboxField}>
+                  <input
+                    type="checkbox"
+                    checked={sqlOpts.transaction}
+                    onChange={(e) =>
+                      setSqlOpts((o) => ({
+                        ...o,
+                        transaction: e.target.checked,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  Wrap in a transaction
+                </label>
+                <label className={styles.checkboxField}>
+                  <input
+                    type="checkbox"
+                    checked={sqlOpts.on_conflict_do_nothing}
+                    onChange={(e) =>
+                      setSqlOpts((o) => ({
+                        ...o,
+                        on_conflict_do_nothing: e.target.checked,
+                      }))
+                    }
+                    disabled={busy}
+                  />
+                  ON CONFLICT DO NOTHING
                 </label>
               </div>
             </div>

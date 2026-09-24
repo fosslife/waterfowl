@@ -77,6 +77,20 @@ pub async fn export_table_streaming(
     let is_table = object_type.as_str() == "table";
     let conn = get_connection(&state, &connection_id)?;
 
+    // The SQL exporter needs a target table for its INSERT statements. Take
+    // it from the object actually being exported rather than a copy the
+    // client sent alongside, so the script can't name the wrong table.
+    let format_options = if format_id == "sql" {
+        let mut opts = format_options;
+        if let Value::Object(ref mut map) = opts {
+            map.insert("table".to_string(), Value::String(name.clone()));
+            map.insert("schema".to_string(), Value::String(schema_name.clone()));
+        }
+        opts
+    } else {
+        format_options
+    };
+
     let exporter = create_exporter(&format_id, &format_options)?;
     let cancel = state.register_cancel(&export_id);
 

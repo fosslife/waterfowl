@@ -88,15 +88,23 @@ export function ViewPanel({ connectionId, tab }: ViewPanelProps) {
           Read-Only View
         </span>
       </div>
-      {/* TODO: wire exportConfig here (mirror TablePanel) so views get
-          the same Export button + selection-sidebar action. Use
-          objectType: "view" in the source. Views may not have filters
-          today — pass activeFilters: [] until filter support is added. */}
       <DataTable
         data={viewData}
         columnInfo={viewColumnInfo}
         isLoading={isViewLoading}
         pagination={viewPagination}
+        exportConfig={{
+          source: {
+            connectionId,
+            objectType: "view",
+            name: tab.viewName,
+            schema: tab.schema,
+          },
+          // Views have no column filters yet, so the "filtered" scope stays
+          // hidden and the total is always the unfiltered count.
+          activeFilters: [],
+          totalCount: viewPagination.totalCount,
+        }}
         onPageChange={(newPage) => {
           fetchViewData(
             tab.viewName,

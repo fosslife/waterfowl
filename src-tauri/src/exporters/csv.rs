@@ -279,9 +279,11 @@ mod tests {
         let out = export(
             CsvOptions::default(),
             &[col("a"), col("b"), col("c")],
-            &[vec![json!(true), json!(3.14), json!(-7)]],
+            // Not 3.14 — clippy::approx_constant (deny by default) flags it as
+            // a stand-in for std::f64::consts::PI.
+            &[vec![json!(true), json!(2.75), json!(-7)]],
         );
-        assert_eq!(out, "a,b,c\r\ntrue,3.14,-7\r\n");
+        assert_eq!(out, "a,b,c\r\ntrue,2.75,-7\r\n");
     }
 
     #[test]
