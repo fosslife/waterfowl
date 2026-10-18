@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Palette } from "lucide-react";
 import {
   DEFAULT_APPEARANCE,
   FONT_OPTIONS,
@@ -101,68 +102,76 @@ export function Settings() {
         </div>
       </header>
 
-      <section className={styles.content}>
-        <div className={styles.panel}>
-          <div className={styles.row}>
-            <div>
-              <h3 className={styles.rowTitle}>Font type</h3>
-              <p className={styles.rowHint}>
-                Font for UI text. Tables and SQL stay monospace.
-              </p>
-            </div>
-            <SettingSelect
-              label="Font type"
-              value={settings.fontFamily}
-              options={FONT_OPTIONS.map((option) => ({
-                value: option.id,
-                label: option.label,
-              }))}
-              onChange={(fontFamily) => {
-                void updateSetting({ fontFamily });
-              }}
-            />
+      <div className={styles.body}>
+        <nav className={styles.nav} aria-label="Settings sections">
+          <div className={styles.navItem} aria-current="page">
+            <Palette size={16} />
+            <span>Appearance</span>
           </div>
+        </nav>
 
-          <div className={styles.row}>
-            <div>
-              <h3 className={styles.rowTitle}>Font size</h3>
-              <p className={styles.rowHint}>
-                Scales text that uses design tokens. Fixed pixel sizes elsewhere
-                stay unchanged.
-              </p>
+        <section className={styles.content}>
+          <div className={styles.panel}>
+            <div className={styles.row}>
+              <div>
+                <h3 className={styles.rowTitle}>Font type</h3>
+                <p className={styles.rowHint}>
+                  Typeface used for the app text.
+                </p>
+              </div>
+              <SettingSelect
+                label="Font type"
+                value={settings.fontFamily}
+                options={FONT_OPTIONS.map((option) => ({
+                  value: option.id,
+                  label: option.label,
+                }))}
+                onChange={(fontFamily) => {
+                  void updateSetting({ fontFamily });
+                }}
+              />
             </div>
-            <SettingSelect
-              label="Font size"
-              value={settings.fontSizePx}
-              options={FONT_SIZE_PX_OPTIONS.map((size) => ({
-                value: size,
-                label: `${size}px`,
-              }))}
-              onChange={(fontSizePx) => {
-                void updateSetting({ fontSizePx });
-              }}
-            />
-          </div>
 
-          <div className={styles.row}>
-            <div>
-              <h3 className={styles.rowTitle}>Zoom</h3>
-              <p className={styles.rowHint}>Scale of the whole window.</p>
+            <div className={styles.row}>
+              <div>
+                <h3 className={styles.rowTitle}>Font size</h3>
+                <p className={styles.rowHint}>
+                  Base text size. Other sizes scale with it.
+                </p>
+              </div>
+              <SettingSelect
+                label="Font size"
+                value={settings.fontSizePx}
+                options={FONT_SIZE_PX_OPTIONS.map((size) => ({
+                  value: size,
+                  label: `${size}px`,
+                }))}
+                onChange={(fontSizePx) => {
+                  void updateSetting({ fontSizePx });
+                }}
+              />
             </div>
-            <SettingSelect
-              label="Zoom"
-              value={settings.zoomPercent}
-              options={ZOOM_PERCENT_OPTIONS.map((zoom) => ({
-                value: zoom,
-                label: `${zoom}%`,
-              }))}
-              onChange={(zoomPercent) => {
-                void updateSetting({ zoomPercent });
-              }}
-            />
+
+            <div className={styles.row}>
+              <div>
+                <h3 className={styles.rowTitle}>Zoom</h3>
+                <p className={styles.rowHint}>Scale of the whole window.</p>
+              </div>
+              <SettingSelect
+                label="Zoom"
+                value={settings.zoomPercent}
+                options={ZOOM_PERCENT_OPTIONS.map((zoom) => ({
+                  value: zoom,
+                  label: `${zoom}%`,
+                }))}
+                onChange={(zoomPercent) => {
+                  void updateSetting({ zoomPercent });
+                }}
+              />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
