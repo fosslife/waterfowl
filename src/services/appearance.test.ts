@@ -1,9 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  bindAppearanceEffects,
+  fontStackFor,
+  requestZoom,
+  resetAppearanceForTests,
+  whenZoomSettled,
+} from "./appearance";
+import {
+  commitSettings,
+  defaultSettings,
+  hydrateSettings,
+  resetSettingsStoreForTests,
+} from "./settings";
 
-const { execute, setZoom } = vi.hoisted(() => ({
-  execute: vi.fn(async (_query: string, _bindValues?: unknown[]) => ({
-    rowsAffected: 1,
-  })),
+const { setZoom } = vi.hoisted(() => ({
   setZoom: vi.fn(async (_factor: number) => undefined),
 }));
 
@@ -12,73 +22,11 @@ vi.mock("@tauri-apps/api/webview", () => ({
 }));
 
 vi.mock("./database", () => ({
-  getDatabase: async () => ({ execute }),
+  getDatabase: async () => ({
+    execute: vi.fn(async () => ({ rowsAffected: 1 })),
+    select: vi.fn(async () => []),
+  }),
 }));
-
-import {
-  DEFAULT_APPEARANCE,
-  applyAppearance,
-  clampNumber,
-  commitAppearanceChange,
-  fontStackFor,
-  getAppliedAppearance,
-  normalizeAppearanceSettings,
-} from "./appearance";
-
-describe("normalizeAppearanceSettings", () => {
-  it("returns defaults for an empty row set", () => {
-    expect(normalizeAppearanceSettings({})).toEqual(DEFAULT_APPEARANCE);
-  });
-
-  it("clamps out-of-range font size and zoom", () => {
-    expect(
-      normalizeAppearanceSettings({
-        fontFamily: "inter",
-        fontSizePx: "99",
-        zoomPercent: "10",
-      }),
-    ).toEqual({
-      fontFamily: "inter",
-      fontSizePx: 18,
-      zoomPercent: 80,
-    });
-  });
-
-  it("rejects non-numeric size and zoom", () => {
-    expect(
-      normalizeAppearanceSettings({
-        fontFamily: "inter",
-        fontSizePx: "nope",
-        zoomPercent: "",
-      }),
-    ).toEqual(DEFAULT_APPEARANCE);
-  });
-
-  it("falls back when font id is unknown", () => {
-    expect(
-      normalizeAppearanceSettings({
-        fontFamily: "georgia",
-        fontSizePx: "14",
-        zoomPercent: "100",
-      }),
-    ).toEqual({
-      fontFamily: "inter",
-      fontSizePx: 14,
-      zoomPercent: 100,
-    });
-  });
-});
-
-describe("clampNumber", () => {
-  it("keeps values inside the range", () => {
-    expect(clampNumber(15, 12, 18)).toBe(15);
-  });
-
-  it("clamps below min and above max", () => {
-    expect(clampNumber(8, 12, 18)).toBe(12);
-    expect(clampNumber(20, 12, 18)).toBe(18);
-  });
-});
 
 describe("fontStackFor", () => {
   it("returns the stack for Inter", () => {
@@ -90,84 +38,78 @@ describe("fontStackFor", () => {
   });
 });
 
-describe("commitAppearanceChange", () => {
+describe("appearance effects", () => {
   beforeEach(() => {
-    execute.mockReset();
-    execute.mockResolvedValue({ rowsAffected: 1 });
+    resetSettingsStoreForTests();
+    resetAppearanceForTests();
+    document.documentElement.removeAttribute("style");
     setZoom.mockReset();
     setZoom.mockResolvedValue(undefined);
-    applyAppearance(DEFAULT_APPEARANCE);
+    bindAppearanceEffects();
   });
 
-  it("writes a second edit only after the first snapshot finishes", async () => {
-    const calls: unknown[][] = [];
-    let releaseFirstWrite = () => {};
-    const firstWrite = new Promise<void>((resolve) => {
-      releaseFirstWrite = resolve;
-    });
-    execute.mockImplementation(
-      async (_query: string, bindValues?: unknown[]) => {
-        calls.push(bindValues ?? []);
-        if (calls.length === 1) await firstWrite;
-        return { rowsAffected: 3 };
-      },
+  it("sets the root font size from the setting and leaves the mono font alone", () => {
+    hydrateSettings({ ...defaultSettings(), fontSizePx: 18, fontFamily: "jetbrains" });
+
+    const root = document.documentElement;
+    expect(root.style.fontSize).toBe("18px");
+    expect(root.style.fontFamily).toBe("");
+    expect(root.style.getPropertyValue("--text-base")).toBe("");
+    expect(root.style.getPropertyValue("--font-sans")).toContain("JetBrains Mono");
+    expect(root.style.getPropertyValue("--font-mono")).toBe("");
+  });
+
+  it("does not send zoom when only the font changes", async () => {
+    hydrateSettings(defaultSettings());
+    await whenZoomSettled();
+    setZoom.mockClear();
+
+    commitSettings({ fontFamily: "jetbrains" });
+    await whenZoomSettled();
+
+    expect(setZoom).not.toHaveBeenCalled();
+    expect(document.documentElement.style.getPropertyValue("--font-sans")).toContain(
+      "JetBrains Mono",
+    );
+  });
+
+  it("sends only the latest zoom when several changes happen before the IPC starts", async () => {
+    requestZoom(110);
+    requestZoom(120);
+    requestZoom(150);
+    await whenZoomSettled();
+
+    expect(setZoom.mock.calls.map((call) => call[0])).toEqual([1.5]);
+  });
+
+  it("skips intermediate zoom values that arrive while one call is in flight", async () => {
+    let release: (value?: undefined) => void = () => undefined;
+    setZoom.mockImplementation(
+      () =>
+        new Promise<undefined>((resolve) => {
+          release = resolve;
+        }),
     );
 
-    const first = commitAppearanceChange({ fontFamily: "jetbrains" });
-    const second = commitAppearanceChange({ fontSizePx: 14 });
+    requestZoom(110);
+    await vi.waitFor(() => expect(setZoom).toHaveBeenCalledWith(1.1));
+    requestZoom(120);
+    requestZoom(150);
+    release();
+    await vi.waitFor(() => expect(setZoom).toHaveBeenCalledWith(1.5));
+    release();
+    await whenZoomSettled();
 
-    await vi.waitFor(() => {
-      expect(execute).toHaveBeenCalledTimes(1);
-    });
-    expect(calls).toEqual([
-      ["fontFamily", "jetbrains", "fontSizePx", "16", "zoomPercent", "100"],
-    ]);
-
-    releaseFirstWrite();
-    await expect(first.saved).resolves.toBe("saved");
-    await expect(second.saved).resolves.toBe("saved");
-    expect(calls).toEqual([
-      ["fontFamily", "jetbrains", "fontSizePx", "16", "zoomPercent", "100"],
-      ["fontFamily", "jetbrains", "fontSizePx", "14", "zoomPercent", "100"],
-    ]);
-    expect(getAppliedAppearance()).toEqual({
-      fontFamily: "jetbrains",
-      fontSizePx: 14,
-      zoomPercent: 100,
-    });
+    expect(setZoom.mock.calls.map((call) => call[0])).toEqual([1.1, 1.5]);
   });
 
-  it("keeps a newer edit when an older save fails", async () => {
+  it("does not reject the zoom chain when the IPC fails", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    let calls = 0;
-    execute.mockImplementation(async () => {
-      calls += 1;
-      if (calls === 1) throw new Error("disk full");
-      return { rowsAffected: 1 };
-    });
+    setZoom.mockRejectedValueOnce(new Error("zoom failed"));
 
-    const first = commitAppearanceChange({ fontFamily: "jetbrains" });
-    const second = commitAppearanceChange({ fontSizePx: 14 });
-
-    await expect(first.saved).resolves.toBe("failed-superseded");
-    await expect(second.saved).resolves.toBe("saved");
-    expect(getAppliedAppearance()).toEqual({
-      fontFamily: "jetbrains",
-      fontSizePx: 14,
-      zoomPercent: 100,
-    });
-    errorSpy.mockRestore();
-  });
-
-  it("restores the previous look when the only save fails", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    execute.mockRejectedValue(new Error("disk full"));
-
-    const change = commitAppearanceChange({ zoomPercent: 120 });
-    expect(change.next.zoomPercent).toBe(120);
-
-    await expect(change.saved).resolves.toBe("failed-rolled-back");
-    expect(getAppliedAppearance()).toEqual(DEFAULT_APPEARANCE);
+    requestZoom(140);
+    await expect(whenZoomSettled()).resolves.toBeUndefined();
+    expect(setZoom).toHaveBeenCalledWith(1.4);
     errorSpy.mockRestore();
   });
 });

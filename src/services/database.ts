@@ -2,6 +2,13 @@
  * Database abstraction layer for Waterfowl.
  * All persistent storage goes through this module.
  * Uses SQLite via tauri-plugin-sql.
+ *
+ * The webview capability `sql:allow-execute` is still required. This file runs
+ * migrations with `execute`, and `connections.ts` uses it for insert, update,
+ * and delete. Settings writes use it too. Values are bound parameters, but the
+ * grant itself is not limited to those statements: any script in the webview
+ * can run SQL against this local file. Replacing the grant means moving every
+ * `execute` call into a validated Rust command. That is a separate change.
  */
 
 import Database from "@tauri-apps/plugin-sql";

@@ -25,7 +25,9 @@ mod types;
 
 use state::AppState;
 use std::env;
+use std::time::Duration;
 use tauri::Manager;
+use tauri_plugin_window_state::StateFlags;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,7 +36,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // Do not restore visibility. The window stays hidden until zoom is applied,
+        // and a saved "visible" flag would show the default zoom first.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(StateFlags::all().difference(StateFlags::VISIBLE))
+                .build(),
+        )
         .manage(AppState::new())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -73,6 +81,30 @@ pub fn run() {
             // open devtools in dev build anyway
             #[cfg(debug_assertions)]
             app.get_webview_window("main").unwrap().open_devtools();
+
+            // The page applies the saved zoom, then shows the window.
+            // If that never happens, show it anyway so startup cannot hide the app forever.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(2000));
+                let Some(window) = handle.get_webview_window("main") else {
+                    return;
+                };
+                match window.is_visible() {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        if let Err(error) = window.show() {
+                            eprintln!(
+                                "Showing the window after the startup fallback failed: {error}"
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        eprintln!("Could not read window visibility during startup: {error}");
+                        let _ = window.show();
+                    }
+                }
+            });
 
             Ok(())
         })

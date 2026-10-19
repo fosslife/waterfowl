@@ -1,0 +1,48 @@
+name: checks
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Configure dependency cache
+        uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+
+      - name: install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: test
+        run: pnpm test
+
+      - name: typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: build
+        run: pnpm build
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Same packages as the release workflow. Tauri's crate check links WebKit on Linux.
+      - name: install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: cargo check
+        run: cargo check --manifest-path src-tauri/Cargo.toml

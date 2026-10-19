@@ -25,6 +25,3 @@ dist-ssr
 
 .agents
 .cursor
-
-# Local OpenSpec planning (not shared via git)
-openspec/

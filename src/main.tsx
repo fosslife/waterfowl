@@ -1,14 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import {
-  applyAppearance,
-  DEFAULT_APPEARANCE,
-  readCachedAppearance,
-} from "@services/appearance";
+import { revealAppWindow } from "@services/appStartup";
+import { bindAppearanceEffects } from "@services/appearance";
+import { hydrateFromStoredCache } from "@services/settings";
 import "./styles/global.css";
 
-applyAppearance(readCachedAppearance() ?? DEFAULT_APPEARANCE);
+bindAppearanceEffects();
+hydrateFromStoredCache();
+void revealAppWindow();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
