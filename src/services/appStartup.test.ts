@@ -7,9 +7,9 @@ import {
   resetSettingsStoreForTests,
 } from "./settings";
 
-const { setZoom, show, select } = vi.hoisted(() => ({
+const { setZoom, revealMainWindow, select } = vi.hoisted(() => ({
   setZoom: vi.fn(async (_factor: number) => undefined),
-  show: vi.fn(async () => undefined),
+  revealMainWindow: vi.fn(async (_command: string) => undefined),
   select: vi.fn(async () => [] as { key: string; value: string }[]),
 }));
 
@@ -17,8 +17,8 @@ vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({ setZoom }),
 }));
 
-vi.mock("@tauri-apps/api/window", () => ({
-  getCurrentWindow: () => ({ show }),
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: (command: string) => revealMainWindow(command),
 }));
 
 vi.mock("./database", () => ({
@@ -34,8 +34,8 @@ describe("revealAppWindow", () => {
     resetAppearanceForTests();
     setZoom.mockReset();
     setZoom.mockResolvedValue(undefined);
-    show.mockReset();
-    show.mockResolvedValue(undefined);
+    revealMainWindow.mockReset();
+    revealMainWindow.mockResolvedValue(undefined);
     select.mockReset();
     bindAppearanceEffects();
   });
@@ -45,8 +45,8 @@ describe("revealAppWindow", () => {
     setZoom.mockImplementation(async (factor: number) => {
       order.push(`zoom:${factor}`);
     });
-    show.mockImplementation(async () => {
-      order.push("show");
+    revealMainWindow.mockImplementation(async () => {
+      order.push("reveal");
     });
     select.mockResolvedValue([
       { key: "fontFamily", value: "inter" },
@@ -58,8 +58,9 @@ describe("revealAppWindow", () => {
     await revealAppWindow();
 
     expect(order[order.length - 2]).toBe("zoom:1.5");
-    expect(order[order.length - 1]).toBe("show");
-    expect(show).toHaveBeenCalledTimes(1);
+    expect(order[order.length - 1]).toBe("reveal");
+    expect(revealMainWindow).toHaveBeenCalledTimes(1);
+    expect(revealMainWindow).toHaveBeenCalledWith("reveal_main_window");
   });
 
   it("shows the window when zoom IPC fails", async () => {
@@ -70,7 +71,8 @@ describe("revealAppWindow", () => {
 
     await revealAppWindow();
 
-    expect(show).toHaveBeenCalledTimes(1);
+    expect(revealMainWindow).toHaveBeenCalledTimes(1);
+    expect(revealMainWindow).toHaveBeenCalledWith("reveal_main_window");
     errorSpy.mockRestore();
   });
 
@@ -86,7 +88,8 @@ describe("revealAppWindow", () => {
       await reveal;
 
       expect(setZoom).toHaveBeenCalledWith(1.3);
-      expect(show).toHaveBeenCalledTimes(1);
+      expect(revealMainWindow).toHaveBeenCalledTimes(1);
+      expect(revealMainWindow).toHaveBeenCalledWith("reveal_main_window");
     } finally {
       vi.useRealTimers();
     }
@@ -128,12 +131,13 @@ describe("revealAppWindow", () => {
     releaseFirst();
     await vi.waitFor(() => expect(setZoom).toHaveBeenCalledWith(1.5));
 
-    expect(show).not.toHaveBeenCalled();
+    expect(revealMainWindow).not.toHaveBeenCalled();
 
     releaseSecond();
     await shown;
 
-    expect(show).toHaveBeenCalledTimes(1);
+    expect(revealMainWindow).toHaveBeenCalledTimes(1);
+    expect(revealMainWindow).toHaveBeenCalledWith("reveal_main_window");
     expect(setZoom.mock.calls.map((call) => call[0])).toEqual([1, 1.5]);
   });
 
@@ -165,7 +169,8 @@ describe("revealAppWindow", () => {
     releaseFirst();
     await shown;
 
-    expect(show).toHaveBeenCalledTimes(1);
+    expect(revealMainWindow).toHaveBeenCalledTimes(1);
+    expect(revealMainWindow).toHaveBeenCalledWith("reveal_main_window");
     expect(setZoom.mock.calls.map((call) => call[0])).toEqual([1, 1.5]);
     errorSpy.mockRestore();
   });

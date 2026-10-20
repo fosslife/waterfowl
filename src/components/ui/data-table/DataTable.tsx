@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -59,6 +60,15 @@ import {
   type ExportDialogSource,
 } from "@components/export/ExportDialog";
 import { Download, RefreshCw, RotateCcw } from "lucide-react";
+import {
+  getAppliedSettingsSnapshot,
+  subscribeSettings,
+} from "@services/settings";
+import { dataTableRowHeight } from "./dataTableRowHeight";
+
+function getDataTableFontSizePx(): number {
+  return getAppliedSettingsSnapshot().fontSizePx;
+}
 
 export interface PaginationState {
   page: number;
@@ -577,10 +587,20 @@ export function DataTable({
     [columnIds, FIXED_PREFIX_W],
   );
 
+  const fontSizePx = useSyncExternalStore(
+    subscribeSettings,
+    getDataTableFontSizePx,
+    getDataTableFontSizePx,
+  );
+  const rowHeight = dataTableRowHeight(fontSizePx);
+  // A new key function when the font size changes makes the virtualizer
+  // rebuild row slots. estimateSize alone does not, so old 36px rows would stay.
+  const getRowKey = useCallback((index: number) => index, [fontSizePx]);
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 36,
+    estimateSize: () => rowHeight,
+    getItemKey: getRowKey,
     overscan: 10,
   });
 

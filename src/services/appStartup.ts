@@ -1,4 +1,4 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { whenZoomSettled } from "./appearance";
 import { startSettingsLoad } from "./settings";
 
@@ -35,7 +35,8 @@ export async function revealAppWindow(): Promise<void> {
   await whenZoomSettled();
 
   try {
-    await getCurrentWindow().show();
+    // Rust shows the window, then restores maximized or fullscreen.
+    await invoke("reveal_main_window");
   } catch (error: unknown) {
     console.error("Failed to show the window", error);
   }

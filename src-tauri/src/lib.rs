@@ -27,7 +27,28 @@ use state::AppState;
 use std::env;
 use std::time::Duration;
 use tauri::Manager;
-use tauri_plugin_window_state::StateFlags;
+use tauri_plugin_window_state::{StateFlags, WindowExt};
+
+/// Show the window, then restore maximized or fullscreen.
+/// Doing that earlier shows the window through the platform maximize call,
+/// before the page has applied the saved zoom.
+fn present_main_window(window: &tauri::WebviewWindow) {
+    if let Err(error) = window.show() {
+        eprintln!("Showing the window failed: {error}");
+    }
+    if let Err(error) = window.restore_state(StateFlags::MAXIMIZED | StateFlags::FULLSCREEN) {
+        eprintln!("Restoring maximized or fullscreen state failed: {error}");
+    }
+}
+
+#[tauri::command]
+fn reveal_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window is missing".to_string())?;
+    present_main_window(&window);
+    Ok(())
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -36,11 +57,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        // Do not restore visibility. The window stays hidden until zoom is applied,
-        // and a saved "visible" flag would show the default zoom first.
+        // Save every flag except visibility. Skip the automatic restore so a
+        // saved maximized state cannot show the window before zoom is applied.
+        // setup restores size and position while the window is still hidden.
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(StateFlags::all().difference(StateFlags::VISIBLE))
+                .skip_initial_state("main")
                 .build(),
         )
         .manage(AppState::new())
@@ -70,20 +93,28 @@ pub fn run() {
             commands::export_table_streaming,
             commands::cancel_export,
             commands::write_text_file,
+            reveal_main_window,
         ])
         .setup(|app| {
             let process_arg: Vec<String> = env::args().collect();
+            let window = app.get_webview_window("main").unwrap();
             if process_arg.contains(&"--debug".to_string()) {
                 // in prod build, if --debug is passed, open devtools
-                app.get_webview_window("main").unwrap().open_devtools();
+                window.open_devtools();
             }
 
             // open devtools in dev build anyway
             #[cfg(debug_assertions)]
-            app.get_webview_window("main").unwrap().open_devtools();
+            window.open_devtools();
 
-            // The page applies the saved zoom, then shows the window.
-            // If that never happens, show it anyway so startup cannot hide the app forever.
+            if let Err(error) = window.restore_state(
+                StateFlags::SIZE | StateFlags::POSITION | StateFlags::DECORATIONS,
+            ) {
+                eprintln!("Restoring window size and position failed: {error}");
+            }
+
+            // The page applies the saved zoom, then reveals the window.
+            // If that never happens, reveal it anyway so startup cannot hide the app forever.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(2000));
@@ -92,16 +123,10 @@ pub fn run() {
                 };
                 match window.is_visible() {
                     Ok(true) => {}
-                    Ok(false) => {
-                        if let Err(error) = window.show() {
-                            eprintln!(
-                                "Showing the window after the startup fallback failed: {error}"
-                            );
-                        }
-                    }
+                    Ok(false) => present_main_window(&window),
                     Err(error) => {
                         eprintln!("Could not read window visibility during startup: {error}");
-                        let _ = window.show();
+                        present_main_window(&window);
                     }
                 }
             });
