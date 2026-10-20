@@ -9,6 +9,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "danger" | "warning" | "default";
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -20,24 +21,31 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   variant = "default",
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   useEffect(() => {
-    if (isOpen) {
-      // Focus the confirm button when dialog opens
-      confirmBtnRef.current?.focus();
+    if (!isOpen) return;
 
-      // Handle escape key
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === "Escape") onCancel();
-      };
-      window.addEventListener("keydown", handleEscape);
-      return () => window.removeEventListener("keydown", handleEscape);
-    }
-  }, [isOpen, onCancel]);
+    // Danger dialogs start on Cancel. Other dialogs still start on Confirm.
+    // The effect does not depend on onCancel, so a parent re-render cannot
+    // pull keyboard focus back onto Delete.
+    const focusTarget =
+      variant === "danger" ? cancelBtnRef.current : confirmBtnRef.current;
+    focusTarget?.focus();
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancelRef.current();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen, variant]);
 
   if (!isOpen) return null;
 
@@ -70,13 +78,18 @@ export function ConfirmDialog({
         </p>
 
         <div className={styles.actions}>
-          <button className={styles.cancelBtn} onClick={onCancel}>
+          <button
+            ref={cancelBtnRef}
+            className={styles.cancelBtn}
+            onClick={onCancel}
+          >
             {cancelLabel}
           </button>
           <button
             ref={confirmBtnRef}
             className={styles.confirmBtn}
             data-variant={variant}
+            disabled={confirmDisabled}
             onClick={onConfirm}
           >
             {confirmLabel}

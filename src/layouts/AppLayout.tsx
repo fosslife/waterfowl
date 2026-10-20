@@ -9,6 +9,7 @@ import {
 import { NavLink, Outlet, useParams, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import clsx from "clsx";
+import { GeneralSettingsNotice } from "../components/GeneralSettingsNotice";
 import { useConnections } from "../context/ConnectionsContext";
 import { useNewConnectionModal } from "../context/NewConnectionModalContext";
 import styles from "./AppLayout.module.css";
@@ -30,6 +31,7 @@ export function AppLayout() {
 
   return (
     <div className={styles.layout}>
+      <GeneralSettingsNotice />
       <aside className={clsx(styles.sidebar, isCollapsed && styles.collapsed)}>
         <div className={styles.brand}>
           <NavLink to="/" className={styles.logo}>
@@ -137,10 +139,16 @@ export function AppLayout() {
         </nav>
 
         <div className={styles.footer}>
-          <button className={styles.navItem} title="Settings">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              clsx(styles.navItem, isActive && styles.active)
+            }
+            title="Settings"
+          >
             <Settings size={16} />
             {!isCollapsed && <span>Settings</span>}
-          </button>
+          </NavLink>
           {!isCollapsed && <div className={styles.version}>v0.2.0</div>}
         </div>
       </aside>

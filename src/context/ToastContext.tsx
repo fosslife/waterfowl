@@ -10,13 +10,15 @@ import {
   ToastData,
   ToastVariant,
 } from "../components/ui/toast/Toast";
+import { allowsStatusNotification } from "../services/generalSettings";
 
 interface ToastContextType {
   toast: (message: string, variant?: ToastVariant, duration?: number) => void;
   success: (message: string, duration?: number) => void;
-  error: (message: string, duration?: number) => void;
+  error: (message: string, duration?: number) => string | undefined;
   warning: (message: string, duration?: number) => void;
   info: (message: string, duration?: number) => void;
+  dismiss: (id: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -31,12 +33,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addToast = useCallback(
-    (message: string, variant: ToastVariant = "info", duration?: number) => {
+    (
+      message: string,
+      variant: ToastVariant = "info",
+      duration?: number,
+    ): string | undefined => {
+      if (!allowsStatusNotification(variant)) return undefined;
       const id = `toast-${++toastId}`;
       setToasts((prev) => [...prev, { id, message, variant, duration }]);
+      return id;
     },
     [],
   );
+
+  const dismiss = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
 
   const toast = useCallback(
     (message: string, variant: ToastVariant = "info", duration?: number) => {
@@ -54,7 +66,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const error = useCallback(
     (message: string, duration?: number) => {
-      addToast(message, "error", duration ?? 6000); // Errors stay longer
+      return addToast(message, "error", duration ?? 6000); // Errors stay longer
     },
     [addToast],
   );
@@ -74,7 +86,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <ToastContext.Provider value={{ toast, success, error, warning, info }}>
+    <ToastContext.Provider
+      value={{ toast, success, error, warning, info, dismiss }}
+    >
       {children}
       <ToastContainer toasts={toasts} onClose={removeToast} />
     </ToastContext.Provider>

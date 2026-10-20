@@ -24,4 +24,5 @@ dist-ssr
 *.sw?
 
 .agents
+# Local Cursor rules for this desktop app stay on this machine
 .cursor

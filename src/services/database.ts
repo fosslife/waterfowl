@@ -8,18 +8,35 @@ import Database from "@tauri-apps/plugin-sql";
 
 const DB_NAME = "sqlite:waterfowl.db";
 
-let db: Database | null = null;
+let opening: Promise<Database> | null = null;
 
 /**
  * Get the database instance, initializing if needed.
+ * Concurrent callers share one open so startup cannot migrate the file twice.
+ *
+ * A failed open clears the shared promise, so the next caller can try again.
+ * An open that has not finished is not replaced. `Database.load` has no
+ * cancellation, and `close` exists only after load returns. A second load
+ * while the first is still running could migrate the file twice.
+ * The failure handler clears the shared promise only when it is still this
+ * attempt, so a late failure cannot drop a newer open.
  */
-export async function getDatabase(): Promise<Database> {
-  if (!db) {
-    console.log("intializing db with migrations");
-    db = await Database.load(DB_NAME);
-    await runMigrations(db);
+export function getDatabase(): Promise<Database> {
+  if (!opening) {
+    const attempt = openDatabase().catch((error: unknown) => {
+      if (opening === attempt) opening = null;
+      throw error;
+    });
+    opening = attempt;
   }
-  return db;
+  return opening;
+}
+
+async function openDatabase(): Promise<Database> {
+  console.log("intializing db with migrations");
+  const database = await Database.load(DB_NAME);
+  await runMigrations(database);
+  return database;
 }
 
 /**
@@ -82,6 +99,15 @@ const MIGRATIONS = [
         connection_id TEXT PRIMARY KEY,
         last_used_at TEXT NOT NULL,
         FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
+      );
+    `,
+  },
+  {
+    name: "002_app_settings",
+    sql: `
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
       );
     `,
   },
