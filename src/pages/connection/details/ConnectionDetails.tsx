@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Trash2,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { TabBar } from "@components/ui/tabs/TabBar";
 import { Button } from "@components/ui/button/Button";
+import { ConfirmDialog } from "@components/ui/dialog/ConfirmDialog";
 import { SchemaSidebar, SchemaObjects } from "@components/SchemaSidebar";
 import { DatabaseDashboard, DatabaseInfo } from "@components/DatabaseDashboard";
 import { SqlEditorTab } from "@components/SqlEditorTab";
@@ -22,6 +23,7 @@ import {
   deleteConnection,
   getConnection,
 } from "@services/connections";
+import { shouldConfirmDestructiveAction } from "@services/generalSettings";
 import {
   TabProvider,
   useTabs,
@@ -32,6 +34,7 @@ import {
   SqlTab,
 } from "@context/TabContext";
 import styles from "./ConnectionDetails.module.css";
+import { runGuardedDelete } from "./runGuardedDelete";
 
 // Import Panels
 import { TablePanel } from "./TablePanel";
@@ -69,6 +72,8 @@ function ConnectionWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const deleteLock = useRef(false);
 
   const connection = connections.find((c) => c.id === id);
   const activeTab = getActiveTab();
@@ -231,23 +236,49 @@ function ConnectionWorkspace() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this connection?")) return;
-    setIsDeleting(true);
+  const performDelete = async () => {
     try {
-      // Close the active connection first
-      await invoke("close_connection", { id });
-      // Delete from SQLite storage
-      await deleteConnection(id!);
-      await refreshConnections();
-      toast.success("Connection deleted");
-      navigate("/");
+      await runGuardedDelete(deleteLock, async () => {
+        setConfirmDeleteOpen(false);
+        setIsDeleting(true);
+        // Close the active connection first
+        await invoke("close_connection", { id });
+        // Delete from SQLite storage
+        await deleteConnection(id!);
+        await refreshConnections();
+        toast.success("Connection deleted");
+        navigate("/");
+      });
     } catch (e: any) {
       console.error(e);
       toast.error(`Failed to delete connection: ${e}`);
       setIsDeleting(false);
     }
   };
+
+  const handleDelete = () => {
+    if (shouldConfirmDestructiveAction()) {
+      setConfirmDeleteOpen(true);
+      return;
+    }
+    void performDelete();
+  };
+
+  const deleteConfirmDialog = (
+    <ConfirmDialog
+      isOpen={confirmDeleteOpen}
+      title="Delete connection"
+      message="Are you sure you want to delete this connection?"
+      confirmLabel="Delete"
+      cancelLabel="Cancel"
+      variant="danger"
+      confirmDisabled={isDeleting}
+      onConfirm={() => {
+        void performDelete();
+      }}
+      onCancel={() => setConfirmDeleteOpen(false)}
+    />
+  );
 
   const handleRetry = () => {
     setIsRetrying(true);
@@ -256,48 +287,53 @@ function ConnectionWorkspace() {
 
   if (error) {
     return (
-      <div className={styles.errorContainer}>
-        <div className={styles.errorCard}>
-          <div className={styles.errorHeader}>
-            <div className={styles.errorIconWrapper}>
-              <AlertTriangle size={20} className={styles.errorIcon} />
+      <>
+        <div className={styles.errorContainer}>
+          <div className={styles.errorCard}>
+            <div className={styles.errorHeader}>
+              <div className={styles.errorIconWrapper}>
+                <AlertTriangle size={20} className={styles.errorIcon} />
+              </div>
+              <div>
+                <h2 className={styles.errorTitle}>Connection Failed</h2>
+                <p className={styles.errorSubtitle}>
+                  Unable to establish database connection
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className={styles.errorTitle}>Connection Failed</h2>
-              <p className={styles.errorSubtitle}>
-                Unable to establish database connection
-              </p>
+            <div className={styles.errorMessage}>
+              <p className={styles.errorText}>{error}</p>
             </div>
-          </div>
-          <div className={styles.errorMessage}>
-            <p className={styles.errorText}>{error}</p>
-          </div>
-          <div className={styles.errorActions}>
-            <Button
-              variant="secondary"
-              onClick={handleRetry}
-              isLoading={isRetrying}
-              className={styles.errorActionBtn}
-            >
-              <RefreshCw size={14} /> Retry
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => navigate(`/connection/edit/${id}`)}
-              className={styles.errorActionBtn}
-            >
-              <Edit size={14} /> Edit
-            </Button>
-            <Button
-              variant="danger"
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
-              <Trash2 size={14} />
-            </Button>
+            <div className={styles.errorActions}>
+              <Button
+                variant="secondary"
+                onClick={handleRetry}
+                isLoading={isRetrying}
+                className={styles.errorActionBtn}
+              >
+                <RefreshCw size={14} /> Retry
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => navigate(`/connection/edit/${id}`)}
+                className={styles.errorActionBtn}
+              >
+                <Edit size={14} /> Edit
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                title="Delete Connection"
+                aria-label="Delete Connection"
+              >
+                <Trash2 size={14} />
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+        {deleteConfirmDialog}
+      </>
     );
   }
 
@@ -496,6 +532,7 @@ function ConnectionWorkspace() {
           )}
         </div>
       </div>
+      {deleteConfirmDialog}
     </div>
   );
 }
